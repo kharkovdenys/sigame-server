@@ -6,6 +6,7 @@ import extract from "extract-zip";
 import path from "path";
 import { XMLParser } from "fast-xml-parser";
 import PackInfo from "./PackInfo";
+import iShowman from "../interfaces/iShowman";
 
 export class Game {
     name: string;
@@ -13,22 +14,22 @@ export class Game {
     type: "open" | "private" = "open";
     password: string | undefined;
     maxPlayers: number;
+    showman: iShowman;
     creator: string;
-    showman: string | undefined;
     players: Player[] = [];
     rounds: Round[] = [];
     packInfo: PackInfo | undefined;
     state = "waiting-ready";
 
-    constructor(name: string, maxPlayers: number, password: string | undefined, creator: string) {
+    constructor(name: string, maxPlayers: number, password: string | undefined, showman: iShowman) {
         this.name = name;
         this.maxPlayers = maxPlayers;
         if (password) {
             this.password = password;
             this.type = "private";
         }
-        this.creator = creator;
-        this.showman = creator;
+        this.showman = showman;
+        this.creator = showman.id;
         this.id = randomUUID();
     }
 
@@ -73,7 +74,9 @@ export class Game {
         return false;
     }
 
-    start(): boolean {
+    start(userId: string): boolean {
+        if (userId !== this.showman.id)
+            return false;
         let ready = 0;
         if (this.state !== "waiting-ready")
             return false;
@@ -81,7 +84,7 @@ export class Game {
             if (this.players[i].state === "ready")
                 ready += 1;
         }
-        return ready === this.players.length ? true : false;
+        return ready === this.players.length && this.players.length > 1 ? true : false;
     }
 
     getRounds(): unknown[] {

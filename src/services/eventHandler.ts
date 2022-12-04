@@ -31,16 +31,29 @@ export default function eventHandler(io: Server): void {
                     return;
                 }
                 if (game.changeReady(socket.id)) {
-                    if (game.start()) {
-                        game.state = 'start';
-                        io.to(data.gameId).emit('start', { rounds: game.getRounds(), themes: game.getThemes(), question: game.getQuestionsRounds(0) });
-                        callback({ status: 'success' });
-                        return;
-                    }
                     io.to(data.gameId).emit('player-change-ready', socket.id);
                     callback({ status: 'success' });
+                    return;
                 }
             }
+            callback({ status: 'failed' });
+        });
+
+        socket.on('start', async (data, callback) => {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (typeof game === "undefined") {
+                    callback({ status: 'failed' });
+                    return;
+                }
+                if (game.start(socket.id)) {
+                    game.state = 'start';
+                    await callback({ status: 'success' });
+                    io.to(data.gameId).emit('start', { rounds: game.getRounds(), themes: game.getThemes(), question: game.getQuestionsRounds(0) });
+                    return;
+                }
+            }
+            callback({ status: 'failed' });
         });
 
         socket.on('get-game-list', function (callback) {
@@ -52,11 +65,15 @@ export default function eventHandler(io: Server): void {
         });
 
         socket.on('create-game', async function (data, callback) {
-            const game = new Game(data.name, data.maxPlayers, data.password, socket.id);
+            if (typeof data.showmanName === 'undefined'
+                || typeof data.name === 'undefined'
+                || typeof data.maxPlayers === 'undefined')
+                callback({ status: 'failed' });
+            const game = new Game(data.name, data.maxPlayers, data.password, { id: socket.id, name: data.showmanName });
             Games.set(game.id, game);
             socket.join(game.id);
             await game.loadPack();
-            callback({ status: 'success' });
+            callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers });
         });
 
         socket.on('join-game', function (data, callback) {
@@ -71,7 +88,7 @@ export default function eventHandler(io: Server): void {
             if (join) {
                 socket.join(gameId);
                 socket.to(game.id).emit('player-joined', player);
-                callback({ status: 'success', players: game.players });
+                callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players });
             } else {
                 callback({ status: 'failed' });
             }
