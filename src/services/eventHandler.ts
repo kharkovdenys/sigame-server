@@ -48,8 +48,9 @@ export default function eventHandler(io: Server): void {
                 }
                 if (game.start(socket.id)) {
                     game.state = 'show-themes';
+                    game.maxPlayers = game.players.length;
                     await callback({ status: 'success' });
-                    io.to(data.gameId).emit('start', { themes: game.getThemes(), gameState: game.state });
+                    io.to(data.gameId).emit('start', { themes: game.getThemes(), gameState: game.state, maxPlayers: game.maxPlayers });
                     return;
                 }
             }
