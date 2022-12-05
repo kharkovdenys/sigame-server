@@ -1,4 +1,4 @@
 export default interface iShowman {
-    id: string,
+    id: string | undefined,
     name: string
 }

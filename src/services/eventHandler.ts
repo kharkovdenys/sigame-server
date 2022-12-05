@@ -12,13 +12,13 @@ export default function eventHandler(io: Server): void {
         socket.on('disconnect', () => {
             for (const game of Games) {
                 if (game[1].leave(socket.id))
-                    socket.to(game[1].id).emit('player-leave', socket.id);
+                    socket.to(game[1].id).emit('leave-game', socket.id);
             }
         });
 
         socket.on('leave-room', (gameid) => {
             if (gameid && Games.get(gameid)?.leave(socket.id)) {
-                socket.to(gameid).emit('player-leave', socket.id);
+                socket.to(gameid).emit('leave-game', socket.id);
                 socket.leave(gameid);
             }
         });
@@ -47,9 +47,9 @@ export default function eventHandler(io: Server): void {
                     return;
                 }
                 if (game.start(socket.id)) {
-                    game.state = 'start';
+                    game.state = 'show-themes';
                     await callback({ status: 'success' });
-                    io.to(data.gameId).emit('start', { rounds: game.getRounds(), themes: game.getThemes(), question: game.getQuestionsRounds(0) });
+                    io.to(data.gameId).emit('start', { themes: game.getThemes(), gameState: game.state });
                     return;
                 }
             }
@@ -73,25 +73,37 @@ export default function eventHandler(io: Server): void {
             Games.set(game.id, game);
             socket.join(game.id);
             await game.loadPack();
-            callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers });
+            callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, gameState: game.state });
         });
 
         socket.on('join-game', function (data, callback) {
             const { gameId } = data;
             const game = Games.get(gameId);
-            if (typeof game === "undefined") {
+            if (typeof game === "undefined" || typeof data.name === 'undefined' || typeof data.type === 'undefined') {
                 callback({ status: 'failed' });
                 return;
             }
-            const player = new Player(socket.id, data.name);
-            const join = game.join(player);
-            if (join) {
-                socket.join(gameId);
-                socket.to(game.id).emit('player-joined', player);
-                callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players });
-            } else {
-                callback({ status: 'failed' });
+            if (data.type === 'player') {
+                const player = new Player(socket.id, data.name);
+                const join = game.join(player);
+                if (join) {
+                    socket.join(gameId);
+                    socket.to(game.id).emit('player-joined', player);
+                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state });
+                    return;
+                }
             }
+            else {
+                const showman = { id: socket.id, name: data.name };
+                const join = game.joinShowman(showman);
+                if (join) {
+                    socket.join(gameId);
+                    socket.to(gameId).emit('showman-joined', showman);
+                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state });
+                    return;
+                }
+            }
+            callback({ status: 'failed' });
         });
 
         socket.on("upload-pack", async (file, callback) => {

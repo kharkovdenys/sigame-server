@@ -29,24 +29,43 @@ export class Game {
             this.type = "private";
         }
         this.showman = showman;
-        this.creator = showman.id;
+        this.creator = showman.id ?? '';
         this.id = randomUUID();
     }
 
     join(player: Player): boolean {
-        if (this.players.length < this.maxPlayers)
-            this.players.push(player);
-        else {
+        if (this.state !== 'waiting-ready' || this.showman.id === player.id)
             return false;
+        if (this.players.length < this.maxPlayers) {
+            for (const iplayer of this.players) {
+                if (iplayer.id === player.id) {
+                    return false;
+                }
+            }
+            this.players.push(player);
+            return true;
         }
-        return true;
+        return false;
+    }
+
+    joinShowman(showman: iShowman): boolean {
+        if (typeof this.showman.id === 'undefined') {
+            for (const player of this.players) {
+                if (player.id === showman.id) {
+                    return false;
+                }
+            }
+            this.showman = showman;
+            return true;
+        }
+        return false;
     }
 
     leave(id: string): boolean {
-        //if (this.showman === id) {
-        //    this.showman = undefined;
-        //    return true;
-        //}
+        if (this.showman.id === id) {
+            this.showman.id = undefined;
+            return true;
+        }
         for (const i in this.players) {
             if (this.players[i].id === id) {
                 if (this.state !== "waiting-ready")
@@ -87,19 +106,13 @@ export class Game {
         return ready === this.players.length && this.players.length > 1 ? true : false;
     }
 
-    getRounds(): unknown[] {
-        const rounds = [];
-        for (const round of this.rounds) {
-            rounds.push({ name: round.name, type: round.type });
-        }
-        return rounds;
-    }
-
     getThemes(): unknown[] {
         const themes = [];
         for (const round of this.rounds) {
-            for (const theme of round.themes) {
-                themes.push({ name: theme.name });
+            if (round.type !== 'final') {
+                for (const theme of round.themes) {
+                    themes.push({ name: theme.name });
+                }
             }
         }
         return themes;
