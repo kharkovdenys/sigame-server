@@ -11,7 +11,6 @@ export default class Theme {
             questions = [questions];
         for (const question of questions) {
             this.questions.push(new Question(question["@_price"], question.right.answer, question.scenario.atom));
-            console.log(question.scenario);
         }
     }
 }

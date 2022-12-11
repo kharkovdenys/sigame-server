@@ -2,7 +2,7 @@ import iAtom from "../interfaces/iAtom";
 import Atom from "./Atom";
 
 export default class Question {
-    price: number;
+    price?: number;
     answer: string;
     //type   not yet
     atom: Atom[] = [];

@@ -1,8 +1,9 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import eventHandler from "./src/services/eventHandler";
+import socket from "./src/services/socketService";
 import resourcesRoutes from "./src/routes/getResources";
+import { clear } from './src/services/fileService';
 
 const app = express();
 const server = createServer(app);
@@ -12,7 +13,8 @@ const io = new Server(server, {
 
 app.use("/api/v1", resourcesRoutes);
 
-eventHandler(io);
+clear();
+socket(io);
 
 server.listen(3000, () => {
     console.log('listening on *:3000');

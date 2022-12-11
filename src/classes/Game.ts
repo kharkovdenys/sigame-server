@@ -1,25 +1,29 @@
 import { randomUUID } from "crypto";
 import Player from "./Player";
 import Round from "./Round";
-import { unlink, readFile } from "fs/promises";
-import extract from "extract-zip";
-import path from "path";
-import { XMLParser } from "fast-xml-parser";
 import PackInfo from "./PackInfo";
 import iShowman from "../interfaces/iShowman";
+import Timer from "./Timer";
+import Question from "./Question";
+import { parserPack, unpack } from "../services/fileService";
 
 export class Game {
     name: string;
     id: string;
     type: "open" | "private" = "open";
-    password: string | undefined;
+    password?: string;
     maxPlayers: number;
     showman: iShowman;
     creator: string;
     players: Player[] = [];
     rounds: Round[] = [];
-    packInfo: PackInfo | undefined;
+    packInfo?: PackInfo;
+    currentRound = 0;
     state = "waiting-ready";
+    timer?: Timer;
+    chooser?: string;
+    countQuestions = 0;
+    currentQuestion: Question = new Question(0, '', ['']);
 
     constructor(name: string, maxPlayers: number, password: string | undefined, showman: iShowman) {
         this.name = name;
@@ -34,11 +38,11 @@ export class Game {
     }
 
     join(player: Player): boolean {
-        if (this.state !== 'waiting-ready' || this.showman.id === player.id)
+        if (this.state !== 'waiting-ready' || this.showman.id === player.id || this.showman.name === player.name)
             return false;
         if (this.players.length < this.maxPlayers) {
             for (const iplayer of this.players) {
-                if (iplayer.id === player.id) {
+                if (iplayer.id === player.id || iplayer.name === player.name) {
                     return false;
                 }
             }
@@ -49,7 +53,7 @@ export class Game {
     }
 
     joinShowman(showman: iShowman): boolean {
-        if (typeof this.showman.id === 'undefined') {
+        if (this.showman.id === undefined) {
             for (const player of this.players) {
                 if (player.id === showman.id) {
                     return false;
@@ -83,10 +87,7 @@ export class Game {
             return false;
         for (const i in this.players) {
             if (this.players[i].id === playerid) {
-                if (this.players[i].state === "not-ready")
-                    this.players[i].state = "ready";
-                else
-                    this.players[i].state = "not-ready";
+                this.players[i].state = this.players[i].state === "not-ready" ? "ready" : "not-ready";
                 return true;
             }
         }
@@ -118,9 +119,17 @@ export class Game {
         return themes;
     }
 
-    getQuestionsRounds(roundid: number): unknown[] {
+    getRoundThemes(): unknown[] {
         const themes = [];
-        for (const theme of this.rounds[roundid].themes) {
+        for (const theme of this.rounds[this.currentRound].themes) {
+            themes.push({ name: theme.name });
+        }
+        return themes;
+    }
+
+    getQuestionsRounds(): unknown[] {
+        const themes = [];
+        for (const theme of this.rounds[this.currentRound].themes) {
             const questionPrice = [];
             for (const question of theme.questions)
                 questionPrice.push(question.price);
@@ -129,15 +138,19 @@ export class Game {
         return themes;
     }
 
+    setCountQuestionsRounds(): void {
+        this.countQuestions = 0;
+        for (const theme of this.rounds[this.currentRound].themes) {
+            for (const question of theme.questions) {
+                if (question.price !== undefined)
+                    this.countQuestions++;
+            }
+        }
+    }
+
     async loadPack(): Promise<void> {
-        await extract(path.join(__dirname, "../../packs/" + this.creator + ".zip"), { dir: path.join(__dirname, "../../packs/" + this.id) });
-        await unlink("packs/" + this.creator + ".zip");
-        const options = {
-            ignoreAttributes: false,
-            attributeNamePrefix: "@_"
-        };
-        const parser = new XMLParser(options);
-        const pack = (parser.parse(await readFile("packs/" + this.id + "/content.xml"))).package;
+        await unpack(this.creator, this.id);
+        const pack = await parserPack(this.id);
         this.packInfo = new PackInfo(pack["@_name"], pack["@_version"], pack["@_date"], pack["@_difficulty"], pack["@_logo"], pack.info.authors.author);
         for (const round of pack.rounds.round) {
             this.rounds.push(new Round(round["@_name"], round["@_type"], round.themes.theme));

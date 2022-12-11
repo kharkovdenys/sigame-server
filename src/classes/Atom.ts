@@ -1,10 +1,10 @@
 export default class Atom {
-    text: string | undefined;
+    text?: string | undefined;
     type: string;
-    time: string | undefined;
+    time?: string;
     constructor(text: string | undefined, type: string | undefined, time: string | undefined) {
         this.text = text;
-        this.type = type ?? 'default';
+        this.type = type ? type : 'default';
         this.time = time;
     }
 }

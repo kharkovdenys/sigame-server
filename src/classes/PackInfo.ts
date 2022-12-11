@@ -3,8 +3,8 @@ export default class PackInfo {
     version: string;
     date: string;
     difficulty: string;
-    logo: string | undefined;
-    authors: string[] | string | undefined;
+    logo?: string;
+    authors?: string[] | string;
 
     constructor(name: string, version: string, date: string, difficulty: string, logo: string | undefined, authors: string[] | string | undefined) {
         this.name = name;

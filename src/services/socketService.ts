@@ -1,11 +1,12 @@
 import { Game } from "../classes/Game";
 import { Server } from "socket.io";
-import { writeFile } from "fs/promises";
 import Player from "../classes/Player";
+import { existsZip, writeZip } from "./fileService";
+import { chooseQuestions, clickQuestion, showRoundThemes } from "./gameService";
 
 const Games: Map<string, Game> = new Map();
 
-export default function eventHandler(io: Server): void {
+export default function socket(io: Server): void {
     io.on("connection", (socket) => {
         console.log(socket.id);
 
@@ -26,7 +27,7 @@ export default function eventHandler(io: Server): void {
         socket.on('change-ready', (data, callback) => {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (typeof game === "undefined") {
+                if (game === undefined) {
                     callback({ status: 'failed' });
                     return;
                 }
@@ -42,7 +43,7 @@ export default function eventHandler(io: Server): void {
         socket.on('start', async (data, callback) => {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (typeof game === "undefined") {
+                if (game === undefined) {
                     callback({ status: 'failed' });
                     return;
                 }
@@ -50,11 +51,52 @@ export default function eventHandler(io: Server): void {
                     game.state = 'show-themes';
                     game.maxPlayers = game.players.length;
                     await callback({ status: 'success' });
-                    io.to(data.gameId).emit('start', { themes: game.getThemes(), gameState: game.state, maxPlayers: game.maxPlayers });
+                    const themes = game.getThemes();
+                    io.to(data.gameId).emit('start', { themes, gameState: game.state, maxPlayers: game.maxPlayers });
+                    setTimeout(() => showRoundThemes(io, game), 1000 * themes.length);
                     return;
                 }
             }
             callback({ status: 'failed' });
+        });
+
+        socket.on('choose-player', function (data) {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    return;
+                }
+                if (game.state === 'choose-player-start' && game.showman.id === socket.id) {
+                    let min = game.players[0].score;
+                    for (let i = 1; i < game.players.length; i++) {
+                        if (min > game.players[i].score) {
+                            min = game.players[i].score;
+                        }
+                    }
+                    for (const player of game.players) {
+                        if (player.name === data.playerName && player.score === min) {
+                            game.chooser = player.name;
+                            game.timer?.pause();
+                            chooseQuestions(io, game);
+                        }
+                    }
+                }
+            }
+        });
+
+        socket.on('choose-question', function (data) {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    return;
+                }
+                if (game.state === 'choose-questions' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
+                    game.timer?.pause();
+                    if (game.rounds[game.currentRound].themes[data.j].questions[data.i].price !== undefined) {
+                        clickQuestion(io, game, data.i, data.j);
+                    }
+                }
+            }
         });
 
         socket.on('get-game-list', function (callback) {
@@ -66,9 +108,8 @@ export default function eventHandler(io: Server): void {
         });
 
         socket.on('create-game', async function (data, callback) {
-            if (typeof data.showmanName === 'undefined'
-                || typeof data.name === 'undefined'
-                || typeof data.maxPlayers === 'undefined')
+            if (data.showmanName === undefined || !existsZip(socket.id)
+                || data.name === undefined || data.maxPlayers === undefined)
                 callback({ status: 'failed' });
             const game = new Game(data.name, data.maxPlayers, data.password, { id: socket.id, name: data.showmanName });
             Games.set(game.id, game);
@@ -80,7 +121,7 @@ export default function eventHandler(io: Server): void {
         socket.on('join-game', function (data, callback) {
             const { gameId } = data;
             const game = Games.get(gameId);
-            if (typeof game === "undefined" || typeof data.name === 'undefined' || typeof data.type === 'undefined') {
+            if (game === undefined || data.name === undefined || data.type === undefined) {
                 callback({ status: 'failed' });
                 return;
             }
@@ -109,7 +150,7 @@ export default function eventHandler(io: Server): void {
 
         socket.on("upload-pack", async (file, callback) => {
             try {
-                await writeFile("packs/" + socket.id + ".zip", file);
+                await writeZip(socket.id, file);
             } catch {
                 callback({ status: "failure" });
             }

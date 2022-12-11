@@ -1,5 +1,5 @@
 export default class Player {
-    id: string | undefined;
+    id?: string;
     name: string;
     score: number;
     state = "not-ready";
