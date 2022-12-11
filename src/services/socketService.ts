@@ -40,6 +40,29 @@ export default function socket(io: Server): void {
             callback({ status: 'failed' });
         });
 
+        socket.on('change-score', (data, callback) => {
+            if (data.gameId && data.playerName && data.score !== undefined) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    callback({ status: 'failed' });
+                    return;
+                }
+                if (game.showman.id === socket.id) {
+                    if (game.players.filter(p => p.name === data.playerName).length) {
+                        game.players.forEach((player) => {
+                            if (player.name === data.playerName) {
+                                player.score = parseInt(data.score);
+                            }
+                        });
+                        io.to(data.gameId).emit('player-change-score', { playerName: data.playerName, score: data.score });
+                        callback({ status: 'success' });
+                        return;
+                    }
+                }
+            }
+            callback({ status: 'failed' });
+        });
+
         socket.on('start', async (data, callback) => {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
