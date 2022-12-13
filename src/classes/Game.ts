@@ -24,6 +24,9 @@ export class Game {
     chooser?: string;
     countQuestions = 0;
     currentQuestion: Question = new Question(0, '', ['']);
+    queue: Player[] = [];
+    currentQueue = 0;
+    rates: Map<string, number> = new Map();
 
     constructor(name: string, maxPlayers: number, password: string | undefined, showman: iShowman) {
         this.name = name;
@@ -87,7 +90,7 @@ export class Game {
             return false;
         for (const i in this.players) {
             if (this.players[i].id === playerid) {
-                this.players[i].state = this.players[i].state === "not-ready" ? "ready" : "not-ready";
+                this.players[i].state = this.players[i].state === "Not ready" ? "Ready" : "Not ready";
                 return true;
             }
         }
@@ -101,7 +104,7 @@ export class Game {
         if (this.state !== "waiting-ready")
             return false;
         for (const i in this.players) {
-            if (this.players[i].state === "ready")
+            if (this.players[i].state === "Ready")
                 ready += 1;
         }
         return ready === this.players.length && this.players.length > 1 ? true : false;
@@ -121,10 +124,26 @@ export class Game {
 
     getRoundThemes(): unknown[] {
         const themes = [];
-        for (const theme of this.rounds[this.currentRound].themes) {
-            themes.push({ name: theme.name });
-        }
+        if (this.rounds[this.currentRound].type !== 'final')
+            for (const theme of this.rounds[this.currentRound].themes) {
+                themes.push({ name: theme.name });
+            }
         return themes;
+    }
+
+    minScore(): { min: number, count: number } {
+        let min = this.players[0].score, count = 1;
+        for (let i = 1; i < this.players.length; i++) {
+            if (min === this.players[i].score) {
+                count++;
+            } else {
+                if (min > this.players[i].score) {
+                    min = this.players[i].score;
+                    count = 1;
+                }
+            }
+        }
+        return { min, count };
     }
 
     getQuestionsRounds(): unknown[] {

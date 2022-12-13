@@ -2,7 +2,7 @@ import { Game } from "../classes/Game";
 import { Server } from "socket.io";
 import Player from "../classes/Player";
 import { existsZip, writeZip } from "./fileService";
-import { chooseQuestions, clickQuestion, showRoundThemes } from "./gameService";
+import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from "./gameService";
 
 const Games: Map<string, Game> = new Map();
 
@@ -90,12 +90,7 @@ export default function socket(io: Server): void {
                     return;
                 }
                 if (game.state === 'choose-player-start' && game.showman.id === socket.id) {
-                    let min = game.players[0].score;
-                    for (let i = 1; i < game.players.length; i++) {
-                        if (min > game.players[i].score) {
-                            min = game.players[i].score;
-                        }
-                    }
+                    const { min } = game.minScore();
                     for (const player of game.players) {
                         if (player.name === data.playerName && player.score === min) {
                             game.chooser = player.name;
@@ -114,9 +109,39 @@ export default function socket(io: Server): void {
                     return;
                 }
                 if (game.state === 'choose-questions' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
-                    game.timer?.pause();
                     if (game.rounds[game.currentRound].themes[data.j].questions[data.i].price !== undefined) {
+                        game.timer?.pause();
                         clickQuestion(io, game, data.i, data.j);
+                    }
+                }
+            }
+        });
+
+        socket.on('choose-theme', function (data) {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    return;
+                }
+                if (game.state === 'choose-theme' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
+                    if (game.rounds[game.currentRound].themes[data.i].name !== '⠀') {
+                        game.timer?.pause();
+                        clickTheme(io, game, data.i);
+                    }
+                }
+            }
+        });
+
+        socket.on('send-rate', function (data) {
+            if (data.gameId && data.score !== undefined) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    return;
+                }
+                if (game.state === 'rates') {
+                    const player = game.players.filter(p => p.id === socket.id)[0];
+                    if (player.state !== "Not a finalist" && game.rates.get(player.name) === undefined && player.score <= data.score && player.score > 0) {
+                        game.rates.set(player.name, data.score);
                     }
                 }
             }
@@ -149,7 +174,7 @@ export default function socket(io: Server): void {
                 return;
             }
             if (data.type === 'player') {
-                const player = new Player(socket.id, data.name);
+                const player = new Player(socket.id, data.name.trim());
                 const join = game.join(player);
                 if (join) {
                     socket.join(gameId);
@@ -159,7 +184,7 @@ export default function socket(io: Server): void {
                 }
             }
             else {
-                const showman = { id: socket.id, name: data.name };
+                const showman = { id: socket.id, name: data.name.trim() };
                 const join = game.joinShowman(showman);
                 if (join) {
                     socket.join(gameId);

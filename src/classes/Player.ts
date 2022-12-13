@@ -2,7 +2,7 @@ export default class Player {
     id?: string;
     name: string;
     score: number;
-    state = "not-ready";
+    state = "Not ready";
 
     constructor(id: string, name: string) {
         this.id = id;
