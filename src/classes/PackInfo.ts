@@ -14,4 +14,10 @@ export default class PackInfo {
         this.logo = logo;
         this.authors = authors;
     }
+
+    getString(): string {
+        return 'Name of the pack: ' + this.name + '\n'
+            + 'Authors of the pack: ' + (Array.isArray(this.authors) ? this.authors : [this.authors]).join(' ') + '\n'
+            + 'Date of creation of the pack: ' + this.date;
+    }
 }

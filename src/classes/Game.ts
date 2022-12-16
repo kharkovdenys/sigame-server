@@ -23,7 +23,7 @@ export class Game {
     timer?: Timer;
     chooser?: string;
     countQuestions = 0;
-    currentQuestion: Question = new Question(0, '', ['']);
+    currentQuestion?: Question;
     queue: Player[] = [];
     currentQueue = 0;
     rates: Map<string, number> = new Map();

@@ -163,7 +163,7 @@ export default function socket(io: Server): void {
             Games.set(game.id, game);
             socket.join(game.id);
             await game.loadPack();
-            callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, gameState: game.state });
+            callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, gameState: game.state, packInfo: game.packInfo?.getString() });
         });
 
         socket.on('join-game', function (data, callback) {
@@ -179,7 +179,7 @@ export default function socket(io: Server): void {
                 if (join) {
                     socket.join(gameId);
                     socket.to(game.id).emit('player-joined', player);
-                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state });
+                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString() });
                     return;
                 }
             }
@@ -189,7 +189,7 @@ export default function socket(io: Server): void {
                 if (join) {
                     socket.join(gameId);
                     socket.to(gameId).emit('showman-joined', showman);
-                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state });
+                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString() });
                     return;
                 }
             }
