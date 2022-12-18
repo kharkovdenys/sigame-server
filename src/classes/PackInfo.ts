@@ -4,7 +4,7 @@ export default class PackInfo {
     date: string;
     difficulty: string;
     logo?: string;
-    authors?: string[] | string;
+    authors?: string;
 
     constructor(name: string, version: string, date: string, difficulty: string, logo: string | undefined, authors: string[] | string | undefined) {
         this.name = name;
@@ -12,12 +12,10 @@ export default class PackInfo {
         this.date = date;
         this.difficulty = difficulty;
         this.logo = logo;
-        this.authors = authors;
+        this.authors = (Array.isArray(authors) ? authors : [authors]).join(' ');
     }
 
     getString(): string {
-        return 'Name of the pack: ' + this.name + '\n'
-            + 'Authors of the pack: ' + (Array.isArray(this.authors) ? this.authors : [this.authors]).join(' ') + '\n'
-            + 'Date of creation of the pack: ' + this.date;
+        return `Name: ${this.name}, Authors: ${this.authors}, Date: ${this.date}`;
     }
 }
