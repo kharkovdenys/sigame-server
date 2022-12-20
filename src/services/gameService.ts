@@ -114,6 +114,30 @@ export async function canAnswer(io: Server, game: Game): Promise<void> {
     game.state = 'can-answer';
     io.to(game.id).emit('can-answer', { gameState: game.state });
     const time = 15000;
+    game.timer = new Timer(() => {
+        answer(io, game);
+    }, time);
+}
+
+export async function answer(io: Server, game: Game): Promise<void> {
+    game.state = 'answer';
+    let answer, comment = '';
+    if (game.currentQuestion?.atom.at(-2)?.type === 'marker') {
+        const current = game.currentQuestion?.atom.at(-1);
+        game.currentResource = game.currentQuestion?.atom.length - 1;
+        answer = { text: current?.type === 'default' || current?.type === 'say' ? current?.text : Date.now().toString(), type: current?.type };
+        comment = game.currentQuestion?.answer;
+    }
+    else
+        answer = { type: 'say', text: game.currentQuestion?.answer };
+    io.to(game.id).emit('answer', { gameState: game.state, atom: answer, comment });
+    let time = 5000;
+    switch (answer?.type) {
+        case 'default': { time = (answer.text?.length ?? 20) * 200; break; }
+        case 'say': { time = (answer.text?.length ?? 20) * 200; break; }
+        case 'video': { time = await getVideoDuration(game); break; }
+        case 'voice': { time = await getAudioDuration(game); break; }
+    }
     if (game.countQuestions)
         game.timer = new Timer(() => {
             chooseQuestions(io, game);
