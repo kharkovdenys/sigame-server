@@ -4,7 +4,7 @@ import Player from "../classes/Player";
 import { existsZip, writeZip } from "./fileService";
 import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from "./gameService";
 
-const Games: Map<string, Game> = new Map();
+export const Games: Map<string, Game> = new Map();
 
 export default function socket(io: Server): void {
     io.on("connection", (socket) => {

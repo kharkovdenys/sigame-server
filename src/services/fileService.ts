@@ -1,7 +1,10 @@
 import extract from "extract-zip";
 import { XMLParser } from "fast-xml-parser";
 import { access, constants, readdir, readFile, rm, unlink, writeFile } from "fs/promises";
+import getAudioDurationInSeconds from "get-audio-duration";
+import getVideoDurationInSeconds from "get-video-duration";
 import path from "path";
+import { Game } from "../classes/Game";
 
 export async function unpack(zipName: string, folderName: string): Promise<void> {
     await extract(path.join(__dirname, "../../packs/", zipName + ".zip"), { dir: path.join(__dirname, "../../packs/", folderName) });
@@ -26,6 +29,22 @@ export async function existsZip(zipName: string): Promise<boolean> {
     return access("packs/" + zipName + ".zip", constants.F_OK)
         .then(() => true)
         .catch(() => false);
+}
+
+export async function getVideoDuration(game: Game): Promise<number> {
+    return new Promise((resolve) =>
+        getVideoDurationInSeconds(path.join(__dirname, "../../packs", game.id, "Video", (game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1))).then((duration) => {
+            resolve(duration * 1000);
+        }).catch(() => { resolve(0); })
+    );
+}
+
+export async function getAudioDuration(game: Game): Promise<number> {
+    return new Promise((resolve) =>
+        getAudioDurationInSeconds(path.join(__dirname, "../../packs", game.id, "Audio", (game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1))).then((duration) => {
+            resolve(duration * 1000);
+        }).catch(() => { resolve(0); })
+    );
 }
 
 export async function clear(): Promise<void> {

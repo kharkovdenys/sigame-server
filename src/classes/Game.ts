@@ -24,6 +24,7 @@ export class Game {
     chooser?: string;
     countQuestions = 0;
     currentQuestion?: Question;
+    currentResource = 0;
     queue: Player[] = [];
     currentQueue = 0;
     rates: Map<string, number> = new Map();

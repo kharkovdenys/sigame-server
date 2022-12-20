@@ -1,5 +1,5 @@
 export default class Atom {
-    text?: string | undefined;
+    text?: string;
     type: string;
     time?: string;
     constructor(text: string | undefined, type: string | undefined, time: string | undefined) {

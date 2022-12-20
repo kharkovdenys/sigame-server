@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { Game } from "../classes/Game";
 import Timer from "../classes/Timer";
+import { getAudioDuration, getVideoDuration } from "./fileService";
 
 export function showRoundThemes(io: Server, game: Game): void {
     game.state = 'show-round-themes';
@@ -73,20 +74,47 @@ export function chooseQuestions(io: Server, game: Game): void {
 
 export function clickQuestion(io: Server, game: Game, i: number, j: number): void {
     game.currentQuestion = game.rounds[game.currentRound].themes[j].questions[i];
+    game.currentResource = 0;
     game.rounds[game.currentRound].themes[j].questions[i].price = undefined;
     game.state = 'question-i-j';
     io.to(game.id).emit('question-i-j', { i, j, gameState: game.state });
     game.countQuestions--;
+    showQuestion(io, game);
+}
+
+export async function showQuestion(io: Server, game: Game): Promise<void> {
+    const current = game.currentQuestion?.atom[game.currentResource];
+    game.state = 'show-question';
+    io.to(game.id).emit('show-question', { gameState: game.state, atom: { text: current?.type === 'default' || current?.type === 'say' ? current?.text : Date.now(), type: current?.type } });
+    let time = 5000;
+    console.log(current);
+    if (current?.time)
+        time = parseInt(current.time) * 1000;
+    else
+        switch (current?.type) {
+            case 'default': { time = (current.text?.length ?? 20) * 200; break; }
+            case 'say': { time = (current.text?.length ?? 20) * 200; break; }
+            case 'video': { time = await getVideoDuration(game); break; }
+            case 'voice': { time = await getAudioDuration(game); break; }
+        }
+    console.log(time);
+    if ((game.currentQuestion?.atom.length ?? 0) - 1 > game.currentResource && game.currentQuestion?.atom[game.currentResource + 1].type !== 'marker') {
+        game.currentResource++;
+        game.timer = new Timer(() => {
+            showQuestion(io, game);
+        }, time);
+        return;
+    }
     if (game.countQuestions)
         game.timer = new Timer(() => {
             chooseQuestions(io, game);
-        }, 1000);
+        }, time);
     else {
         if (game.rounds.length - 1 > game.currentRound) {
             game.currentRound++;
             game.timer = new Timer(() => {
                 showRoundThemes(io, game);
-            }, 1000);
+            }, time);
         }
     }
 }
