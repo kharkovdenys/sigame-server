@@ -8,7 +8,7 @@ export function showRoundThemes(io: Server, game: Game): void {
     const themes = game.getRoundThemes();
     game.setCountQuestionsRounds();
     io.to(game.id).emit('show-round-themes', { gameState: game.state, themes, roundName: game.rounds[game.currentRound].name, typeRound: game.rounds[game.currentRound].type });
-    setTimeout(() => whichPlayerStarts(io, game), 2000 * (themes.length + 1));
+    game.timer = new Timer(() => whichPlayerStarts(io, game), 2000 * (themes.length + 1));
 }
 
 export function whichPlayerStarts(io: Server, game: Game): void {
@@ -105,6 +105,15 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
         }, time);
         return;
     }
+    game.timer = new Timer(() => {
+        canAnswer(io, game);
+    }, time);
+}
+
+export async function canAnswer(io: Server, game: Game): Promise<void> {
+    game.state = 'can-answer';
+    io.to(game.id).emit('can-answer', { gameState: game.state });
+    const time = 15000;
     if (game.countQuestions)
         game.timer = new Timer(() => {
             chooseQuestions(io, game);

@@ -7,7 +7,10 @@ import path from "path";
 import { Game } from "../classes/Game";
 
 export async function unpack(zipName: string, folderName: string): Promise<void> {
-    await extract(path.join(__dirname, "../../packs/", zipName + ".zip"), { dir: path.join(__dirname, "../../packs/", folderName) });
+    const onEntry = function (entry: { fileName: string; }): void {
+        entry.fileName = decodeURI(entry.fileName);
+    };
+    await extract(path.join(__dirname, "../../packs/", zipName + ".zip"), { dir: path.join(__dirname, "../../packs/", folderName), onEntry });
     await unlink("packs/" + zipName + ".zip");
 }
 

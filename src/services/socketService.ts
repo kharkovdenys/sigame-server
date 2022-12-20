@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import Player from "../classes/Player";
 import { existsZip, writeZip } from "./fileService";
 import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from "./gameService";
+import Timer from "../classes/Timer";
 
 export const Games: Map<string, Game> = new Map();
 
@@ -76,7 +77,25 @@ export default function socket(io: Server): void {
                     await callback({ status: 'success' });
                     const themes = game.getThemes();
                     io.to(data.gameId).emit('start', { themes, gameState: game.state, maxPlayers: game.maxPlayers });
-                    setTimeout(() => showRoundThemes(io, game), 1000 * themes.length);
+                    game.timer = new Timer(() => showRoundThemes(io, game), 1000 * themes.length);
+                    return;
+                }
+            }
+            callback({ status: 'failed' });
+        });
+
+        socket.on('skip', async (data, callback) => {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    callback({ status: 'failed' });
+                    return;
+                }
+                if (game.timer) {
+                    game.timer.pause();
+                    game.timer.remaining = 0;
+                    game.timer.resume();
+                    callback({ status: 'success' });
                     return;
                 }
             }
