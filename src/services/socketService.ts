@@ -169,7 +169,7 @@ export default function socket(io: Server): void {
         socket.on('get-game-list', function (callback) {
             const gameList = [];
             for (const [, game] of Games.entries()) {
-                gameList.push({ id: game.id, name: game.name, players: game.players.length, maxPlayers: game.maxPlayers, rounds: game.rounds.length });
+                gameList.push({ id: game.id, name: game.name, players: game.players.filter(p => p.id).length, maxPlayers: game.maxPlayers, rounds: game.rounds.length });
             }
             callback(gameList);
         });
@@ -183,6 +183,7 @@ export default function socket(io: Server): void {
             socket.join(game.id);
             await game.loadPack();
             callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, gameState: game.state, packInfo: game.packInfo?.getString() });
+            game.loading = false;
         });
 
         socket.on('join-game', function (data, callback) {
@@ -192,25 +193,26 @@ export default function socket(io: Server): void {
                 callback({ status: 'failed' });
                 return;
             }
+            let join;
             if (data.type === 'player') {
                 const player = new Player(socket.id, data.name.trim());
-                const join = game.join(player);
+                join = game.join(player);
                 if (join) {
                     socket.join(gameId);
-                    socket.to(game.id).emit('player-joined', player);
-                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString() });
-                    return;
+                    socket.to(game.id).emit('player-joined', { players: game.players, chooser: game.chooser });
                 }
             }
             else {
                 const showman = { id: socket.id, name: data.name.trim() };
-                const join = game.joinShowman(showman);
+                join = game.joinShowman(showman);
                 if (join) {
                     socket.join(gameId);
                     socket.to(gameId).emit('showman-joined', showman);
-                    callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString() });
-                    return;
                 }
+            }
+            if (join) {
+                callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString(), themes: game.getThemes(), roundName: game.rounds[game.currentRound].name, chooser: game.chooser, questions: game.getQuestionsRounds(), typeRound: game.rounds[game.currentRound].type });
+                return;
             }
             callback({ status: 'failed' });
         });

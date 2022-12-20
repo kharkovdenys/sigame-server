@@ -26,6 +26,7 @@ export class Game {
     currentQuestion?: Question;
     currentResource = 0;
     queue: Player[] = [];
+    loading = true;
     currentQueue = 0;
     rates: Map<string, number> = new Map();
 
@@ -42,9 +43,9 @@ export class Game {
     }
 
     join(player: Player): boolean {
-        if (this.state !== 'waiting-ready' || this.showman.id === player.id || this.showman.name === player.name)
+        if (this.loading || this.showman.id === player.id || this.showman.name === player.name)
             return false;
-        if (this.players.length < this.maxPlayers) {
+        if (this.state === 'waiting-ready' && this.players.length < this.maxPlayers) {
             for (const iplayer of this.players) {
                 if (iplayer.id === player.id || iplayer.name === player.name) {
                     return false;
@@ -52,11 +53,42 @@ export class Game {
             }
             this.players.push(player);
             return true;
+        } else {
+            const sameNames = this.players.filter(p => p.name === player.name)[0];
+            console.log(sameNames);
+            if (sameNames) {
+                if (sameNames.id === undefined) {
+                    console.log(1);
+                    this.players.forEach((p) => {
+                        if (p.name === player.name) {
+                            p.id = player.id;
+                        }
+                    });
+                    return true;
+                }
+            } else {
+                console.log(2);
+                let flag = false;
+                this.players.forEach((p) => {
+                    if (p.id === undefined) {
+                        p.id = player.id;
+                        if (p.name === this.chooser)
+                            this.chooser = player.name;
+                        p.name = player.name;
+                        flag = true;
+                        return;
+                    }
+                });
+                if (flag)
+                    return true;
+            }
         }
         return false;
     }
 
     joinShowman(showman: iShowman): boolean {
+        if (this.loading)
+            return false;
         if (this.showman.id === undefined) {
             for (const player of this.players) {
                 if (player.id === showman.id) {
@@ -76,8 +108,9 @@ export class Game {
         }
         for (const i in this.players) {
             if (this.players[i].id === id) {
-                if (this.state !== "waiting-ready")
+                if (this.state !== "waiting-ready") {
                     this.players[i].id = undefined;
+                }
                 else
                     this.players.splice(parseInt(i), 1);
                 return true;
