@@ -91,6 +91,13 @@ export default function socket(io: Server): void {
                     callback({ status: 'failed' });
                     return;
                 }
+                if (game.answering) {
+                    game.answering.pause();
+                    game.answering.remaining = 0;
+                    game.answering.resume();
+                    callback({ status: 'success' });
+                    return;
+                }
                 if (game.timer) {
                     game.timer.pause();
                     game.timer.remaining = 0;
@@ -131,6 +138,75 @@ export default function socket(io: Server): void {
                     if (game.rounds[game.currentRound].themes[data.j].questions[data.i].price !== undefined) {
                         game.timer?.pause();
                         clickQuestion(io, game, data.i, data.j);
+                    }
+                }
+            }
+        });
+
+        socket.on('send-answer-result', function (data) {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    return;
+                }
+                if (game.state === 'answering' && game.showman.id === socket.id) {
+                    if (data.result) {
+                        game.answering?.pause();
+                        game.answering = undefined;
+                        if (game.timer)
+                            game.timer.remaining = 0;
+                        game.chooser = data.chooser;
+                        game.timer?.resume();
+                        game.players.forEach(p => {
+                            if (p.name === data.chooser) {
+                                p.score = p.score + parseInt((game.currentQuestion?.price ?? '0').toString());
+                                io.to(game.id).emit('player-change-score', { playerName: p.name, score: p.score });
+                            }
+                        });
+                    }
+                    else {
+                        game.answering?.pause();
+                        if (game.answering)
+                            game.answering.remaining = 0;
+                        game.answering?.resume();
+                        game.answering = undefined;
+                    }
+                }
+            }
+        });
+
+        socket.on('click-for-answer', function (data) {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (game === undefined) {
+                    return;
+                }
+                if (game.state === 'show-question') {
+                    if ((game.cooldown.get(socket.id) ?? 0) < Date.now()) {
+                        game.cooldown.set(socket.id, Date.now() + 10000);
+                    }
+                }
+                if (game.state === 'can-answer') {
+                    console.log(game.cooldown.get(socket.id), Date.now());
+                    if ((game.cooldown.get(socket.id) ?? 0) < Date.now() && !game.clicked.has(socket.id) && !game.answering) {
+                        game.clicked.add(socket.id);
+                        game.timer?.pause();
+                        game.state = 'answering';
+                        io.to(game.showman.id ?? '').emit('correct-answer', game.currentQuestion?.answer);
+                        io.to(game.id).emit('answering', { gameState: game.state, chooser: game.players.filter(p => p.id === socket.id)[0].name });
+                        game.answering = new Timer(() => {
+                            game.state = 'can-answer';
+                            io.to(game.id).emit('can-answer', { gameState: game.state, timing: (game.timer?.remaining ?? 0) / 1000 });
+                            game.timer?.resume();
+                            console.log(socket.id);
+                            game.players.forEach(p => {
+                                if (p.id === socket.id) {
+                                    p.score -= game.currentQuestion?.price ?? 0;
+                                    io.to(game.id).emit('player-change-score', { playerName: p.name, score: p.score });
+                                }
+                            });
+                            game.answering = undefined;
+                        }, 30000);
                     }
                 }
             }

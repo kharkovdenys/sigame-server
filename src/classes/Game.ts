@@ -21,6 +21,7 @@ export class Game {
     currentRound = 0;
     state = "waiting-ready";
     timer?: Timer;
+    answering?: Timer;
     chooser?: string;
     countQuestions = 0;
     currentQuestion?: Question;
@@ -29,6 +30,8 @@ export class Game {
     loading = true;
     currentQueue = 0;
     rates: Map<string, number> = new Map();
+    cooldown: Map<string, number> = new Map();
+    clicked: Set<string> = new Set();
 
     constructor(name: string, maxPlayers: number, password: string | undefined, showman: iShowman) {
         this.name = name;
@@ -185,7 +188,7 @@ export class Game {
         for (const theme of this.rounds[this.currentRound].themes) {
             const questionPrice = [];
             for (const question of theme.questions)
-                questionPrice.push(question.price);
+                questionPrice.push(question.used ? undefined : question.price);
             themes.push({ name: theme.name, prices: questionPrice });
         }
         return themes;
@@ -195,7 +198,7 @@ export class Game {
         this.countQuestions = 0;
         for (const theme of this.rounds[this.currentRound].themes) {
             for (const question of theme.questions) {
-                if (question.price !== undefined)
+                if (!question.used)
                     this.countQuestions++;
             }
         }

@@ -60,7 +60,7 @@ export function chooseQuestions(io: Server, game: Game): void {
         let k = 0;
         for (const [j, theme] of game.rounds[game.currentRound].themes.entries()) {
             for (const [i, question] of theme.questions.entries()) {
-                if (typeof question.price !== 'undefined') {
+                if (!question.used) {
                     if (k === random) {
                         clickQuestion(io, game, i, j);
                         return;
@@ -75,7 +75,7 @@ export function chooseQuestions(io: Server, game: Game): void {
 export function clickQuestion(io: Server, game: Game, i: number, j: number): void {
     game.currentQuestion = game.rounds[game.currentRound].themes[j].questions[i];
     game.currentResource = 0;
-    game.rounds[game.currentRound].themes[j].questions[i].price = undefined;
+    game.rounds[game.currentRound].themes[j].questions[i].used = true;
     game.state = 'question-i-j';
     io.to(game.id).emit('question-i-j', { i, j, gameState: game.state });
     game.countQuestions--;
@@ -112,7 +112,8 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
 
 export async function canAnswer(io: Server, game: Game): Promise<void> {
     game.state = 'can-answer';
-    io.to(game.id).emit('can-answer', { gameState: game.state });
+    game.clicked.clear();
+    io.to(game.id).emit('can-answer', { gameState: game.state, timing: 15 });
     const time = 15000;
     game.timer = new Timer(() => {
         answer(io, game);
