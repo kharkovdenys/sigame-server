@@ -1,7 +1,7 @@
 import { Game } from "../classes/Game";
 import { Server } from "socket.io";
 import Player from "../classes/Player";
-import { existsZip, writeZip } from "./fileService";
+import { deleteFolder, existsZip, writeZip } from "./fileService";
 import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from "./gameService";
 import Timer from "../classes/Timer";
 
@@ -13,22 +13,36 @@ export default function socket(io: Server): void {
 
         socket.on('disconnect', () => {
             for (const game of Games) {
-                if (game[1].leave(socket.id))
+                if (game[1].leave(socket.id)) {
                     socket.to(game[1].id).emit('leave-game', socket.id);
+                    if (!game[1].players.filter(p => p.id).length && !game[1].showman.id) {
+                        game[1].timer?.pause();
+                        game[1].answering?.pause();
+                        Games.delete(game[0]);
+                        deleteFolder(game[0]);
+                    }
+                }
             }
         });
 
         socket.on('leave-room', (gameid) => {
-            if (gameid && Games.get(gameid)?.leave(socket.id)) {
+            const game = Games.get(gameid);
+            if (gameid && game && game.leave(socket.id)) {
                 socket.to(gameid).emit('leave-game', socket.id);
                 socket.leave(gameid);
+                if (!game.players.filter(p => p.id).length && !game.showman.id) {
+                    game.timer?.pause();
+                    game.answering?.pause();
+                    Games.delete(game.id);
+                    deleteFolder(game.id);
+                }
             }
         });
 
         socket.on('change-ready', (data, callback) => {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
+                if (!game) {
                     callback({ status: 'failed' });
                     return;
                 }
@@ -44,7 +58,7 @@ export default function socket(io: Server): void {
         socket.on('change-score', (data, callback) => {
             if (data.gameId && data.playerName && data.score !== undefined) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
+                if (!game) {
                     callback({ status: 'failed' });
                     return;
                 }
@@ -67,7 +81,7 @@ export default function socket(io: Server): void {
         socket.on('start', async (data, callback) => {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
+                if (!game) {
                     callback({ status: 'failed' });
                     return;
                 }
@@ -87,7 +101,7 @@ export default function socket(io: Server): void {
         socket.on('skip', async (data, callback) => {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
+                if (!game) {
                     callback({ status: 'failed' });
                     return;
                 }
@@ -95,6 +109,7 @@ export default function socket(io: Server): void {
                     game.answering.pause();
                     game.answering.remaining = 0;
                     game.answering.resume();
+                    game.answering = undefined;
                     callback({ status: 'success' });
                     return;
                 }
@@ -102,6 +117,7 @@ export default function socket(io: Server): void {
                     game.timer.pause();
                     game.timer.remaining = 0;
                     game.timer.resume();
+                    game.timer = undefined;
                     callback({ status: 'success' });
                     return;
                 }
@@ -112,9 +128,7 @@ export default function socket(io: Server): void {
         socket.on('choose-player', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
-                    return;
-                }
+                if (!game) return;
                 if (game.state === 'choose-player-start' && game.showman.id === socket.id) {
                     const { min } = game.minScore();
                     for (const player of game.players) {
@@ -131,12 +145,11 @@ export default function socket(io: Server): void {
         socket.on('choose-question', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
-                    return;
-                }
+                if (!game) return;
                 if (game.state === 'choose-questions' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
                     if (game.rounds[game.currentRound].themes[data.j].questions[data.i].price !== undefined) {
                         game.timer?.pause();
+                        game.timer = undefined;
                         clickQuestion(io, game, data.i, data.j);
                     }
                 }
@@ -146,9 +159,7 @@ export default function socket(io: Server): void {
         socket.on('send-answer-result', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
-                    return;
-                }
+                if (!game) return;
                 if (game.state === 'answering' && game.showman.id === socket.id) {
                     if (data.result) {
                         game.answering?.pause();
@@ -178,22 +189,20 @@ export default function socket(io: Server): void {
         socket.on('click-for-answer', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
-                    return;
-                }
+                if (!game) return;
                 if (game.state === 'show-question') {
                     if ((game.cooldown.get(socket.id) ?? 0) < Date.now()) {
                         game.cooldown.set(socket.id, Date.now() + 10000);
                     }
                 }
                 if (game.state === 'can-answer') {
-                    console.log(game.cooldown.get(socket.id), Date.now());
                     if ((game.cooldown.get(socket.id) ?? 0) < Date.now() && !game.clicked.has(socket.id) && !game.answering) {
                         game.clicked.add(socket.id);
                         game.timer?.pause();
                         game.state = 'answering';
                         io.to(game.showman.id ?? '').emit('correct-answer', game.currentQuestion?.answer);
-                        io.to(game.id).emit('answering', { gameState: game.state, chooser: game.players.filter(p => p.id === socket.id)[0].name });
+                        const player = game.players.filter(p => p.id === socket.id)[0];
+                        io.to(game.id).emit('answering', { gameState: game.state, chooser: player ? player.name : '' });
                         game.answering = new Timer(() => {
                             game.state = 'can-answer';
                             io.to(game.id).emit('can-answer', { gameState: game.state, timing: (game.timer?.remaining ?? 0) / 1000 });
@@ -215,9 +224,7 @@ export default function socket(io: Server): void {
         socket.on('choose-theme', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
-                    return;
-                }
+                if (!game) return;
                 if (game.state === 'choose-theme' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
                     if (game.rounds[game.currentRound].themes[data.i].name !== '⠀') {
                         game.timer?.pause();
@@ -228,14 +235,12 @@ export default function socket(io: Server): void {
         });
 
         socket.on('send-rate', function (data) {
-            if (data.gameId && data.score !== undefined) {
+            if (data.gameId && data.score === undefined) {
                 const game = Games.get(data.gameId);
-                if (game === undefined) {
-                    return;
-                }
+                if (!game) return;
                 if (game.state === 'rates') {
                     const player = game.players.filter(p => p.id === socket.id)[0];
-                    if (player.state !== "Not a finalist" && game.rates.get(player.name) === undefined && player.score <= data.score && player.score > 0) {
+                    if (player && player.state !== "Not a finalist" && !game.rates.get(player.name) && player.score <= data.score && player.score > 0) {
                         game.rates.set(player.name, data.score);
                     }
                 }
@@ -251,21 +256,26 @@ export default function socket(io: Server): void {
         });
 
         socket.on('create-game', async function (data, callback) {
-            if (data.showmanName === undefined || !existsZip(socket.id)
-                || data.name === undefined || data.maxPlayers === undefined)
+            if (!data.showmanName || !(await existsZip(socket.id)) || !data.name || !data.maxPlayers)
                 callback({ status: 'failed' });
             const game = new Game(data.name, data.maxPlayers, data.password, { id: socket.id, name: data.showmanName });
             Games.set(game.id, game);
             socket.join(game.id);
-            await game.loadPack();
-            callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, gameState: game.state, packInfo: game.packInfo?.getString() });
-            game.loading = false;
+            try {
+                await game.loadPack();
+                callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, gameState: game.state, packInfo: game.packInfo?.getString() });
+                game.loading = false;
+            } catch {
+                Games.delete(game.id);
+                callback({ status: 'failed' });
+            }
+
         });
 
         socket.on('join-game', function (data, callback) {
             const { gameId } = data;
             const game = Games.get(gameId);
-            if (game === undefined || data.name === undefined || data.type === undefined) {
+            if (!game || !data.name || !data.type) {
                 callback({ status: 'failed' });
                 return;
             }

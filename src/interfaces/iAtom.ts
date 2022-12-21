@@ -1,5 +1,5 @@
 export default interface iAtom {
-    "#text": string | undefined,
+    "#text"?: string,
     "@_type": string,
-    "@_time": string | undefined
+    "@_time"?: string
 }

@@ -1,4 +1,4 @@
-import iThemes from "../interfaces/iThemes";
+import iThemes from "../interfaces/iTheme";
 import Theme from "./Theme";
 
 export default class Round {

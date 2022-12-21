@@ -1,10 +1,12 @@
 import extract from "extract-zip";
 import { XMLParser } from "fast-xml-parser";
-import { access, constants, readdir, readFile, rm, unlink, writeFile } from "fs/promises";
+import { access, readdir, readFile, rm, unlink, writeFile } from "fs/promises";
+import { constants } from 'fs';
 import getAudioDurationInSeconds from "get-audio-duration";
 import getVideoDurationInSeconds from "get-video-duration";
 import path from "path";
 import { Game } from "../classes/Game";
+import iPackage from "../interfaces/iPackage";
 
 export async function unpack(zipName: string, folderName: string): Promise<void> {
     const onEntry = function (entry: { fileName: string; }): void {
@@ -14,8 +16,7 @@ export async function unpack(zipName: string, folderName: string): Promise<void>
     await unlink("packs/" + zipName + ".zip");
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function parserPack(folderName: string): Promise<any> {
+export async function parserPack(folderName: string): Promise<iPackage> {
     const options = {
         ignoreAttributes: false,
         attributeNamePrefix: "@_"
@@ -56,6 +57,14 @@ export async function clear(): Promise<void> {
         for (const file of files)
             if (file !== '.gitkeep')
                 await rm('packs/' + file, { recursive: true });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+export async function deleteFolder(gameId: string): Promise<void> {
+    try {
+        await rm('packs/' + gameId, { recursive: true });
     } catch (err) {
         console.error(err);
     }

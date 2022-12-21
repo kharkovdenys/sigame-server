@@ -79,7 +79,7 @@ export function clickQuestion(io: Server, game: Game, i: number, j: number): voi
     game.state = 'question-i-j';
     io.to(game.id).emit('question-i-j', { i, j, gameState: game.state });
     game.countQuestions--;
-    showQuestion(io, game);
+    game.timer = new Timer(() => showQuestion(io, game), 1000);
 }
 
 export async function showQuestion(io: Server, game: Game): Promise<void> {
@@ -167,7 +167,7 @@ export function clickTheme(io: Server, game: Game, i: number): void {
         io.to(game.id).emit('rates', { gameState: game.state });
         game.timer = new Timer(() => {
             for (const player of game.players) {
-                if (player.state !== 'Not a finalist' && game.rates.get(player.name) === undefined) {
+                if (player.state !== 'Not a finalist' && !game.rates.get(player.name)) {
                     game.rates.set(player.name, 1);
                 }
             }

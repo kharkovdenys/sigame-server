@@ -6,7 +6,7 @@ export default class PackInfo {
     logo?: string;
     authors?: string;
 
-    constructor(name: string, version: string, date: string, difficulty: string, logo: string | undefined, authors: string[] | string | undefined) {
+    constructor(name: string, version: string, date: string, difficulty: string, logo?: string, authors?: string[] | string) {
         this.name = name;
         this.version = version;
         this.date = date;

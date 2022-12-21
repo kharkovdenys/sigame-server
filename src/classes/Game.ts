@@ -60,8 +60,7 @@ export class Game {
             const sameNames = this.players.filter(p => p.name === player.name)[0];
             console.log(sameNames);
             if (sameNames) {
-                if (sameNames.id === undefined) {
-                    console.log(1);
+                if (!sameNames.id) {
                     this.players.forEach((p) => {
                         if (p.name === player.name) {
                             p.id = player.id;
@@ -70,10 +69,9 @@ export class Game {
                     return true;
                 }
             } else {
-                console.log(2);
                 let flag = false;
                 this.players.forEach((p) => {
-                    if (p.id === undefined) {
+                    if (!p.id) {
                         p.id = player.id;
                         if (p.name === this.chooser)
                             this.chooser = player.name;
@@ -92,7 +90,7 @@ export class Game {
     joinShowman(showman: iShowman): boolean {
         if (this.loading)
             return false;
-        if (this.showman.id === undefined) {
+        if (!this.showman.id) {
             for (const player of this.players) {
                 if (player.id === showman.id) {
                     return false;
