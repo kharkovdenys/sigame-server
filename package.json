@@ -2,6 +2,7 @@
   "name": "sigame-server",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "server.ts",
   "scripts": {
     "start": "npx ts-node server.ts",
