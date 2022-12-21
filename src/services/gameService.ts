@@ -123,8 +123,8 @@ export async function canAnswer(io: Server, game: Game): Promise<void> {
 export async function answer(io: Server, game: Game): Promise<void> {
     game.state = 'answer';
     let answer, comment = '';
-    if (game.currentQuestion?.atom.at(-2)?.type === 'marker') {
-        const current = game.currentQuestion?.atom.at(-1);
+    if ((game.currentQuestion?.atom.length ?? 0) > 2 && game.currentQuestion?.atom[game.currentQuestion?.atom.length - 2].type === 'marker') {
+        const current = game.currentQuestion?.atom[game.currentQuestion?.atom.length - 1];
         game.currentResource = game.currentQuestion?.atom.length - 1;
         answer = { text: current?.type === 'default' || current?.type === 'say' ? current?.text : Date.now().toString(), type: current?.type };
         comment = game.currentQuestion?.answer;
