@@ -7,6 +7,7 @@ import { clear } from './src/services/fileService';
 
 const app = express();
 const server = createServer(app);
+const port = process.env.PORT || 3000;
 const io = new Server(server, {
     maxHttpBufferSize: 1e8, cors: { origin: "*" }
 });
@@ -16,6 +17,6 @@ app.use("/api/v1", resourcesRoutes);
 clear();
 socket(io);
 
-server.listen(3000, () => {
-    console.log('listening on *:3000');
+server.listen(port, () => {
+    console.log('listening on *:port');
 });
