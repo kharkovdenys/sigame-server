@@ -6,6 +6,7 @@ import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from "./g
 import Timer from "../classes/Timer";
 
 export const Games: Map<string, Game> = new Map();
+const Leave: Map<string, NodeJS.Timeout> = new Map();
 
 export default function socket(io: Server): void {
     io.on("connection", (socket) => {
@@ -13,14 +14,19 @@ export default function socket(io: Server): void {
 
         socket.on('disconnect', () => {
             for (const game of Games) {
-                if (game[1].leave(socket.id)) {
-                    socket.to(game[1].id).emit('leave-game', socket.id);
-                    if (!game[1].players.filter(p => p.id).length && !game[1].showman.id) {
-                        game[1].timer?.pause();
-                        game[1].answering?.pause();
-                        Games.delete(game[0]);
-                        deleteFolder(game[0]);
-                    }
+                const name = game[1].leave(socket.id);
+                if (name !== false) {
+                    const timer = setTimeout(() => {
+                        socket.to(game[1].id).emit('leave-game', socket.id);
+                        if (!game[1].players.filter(p => p.id).length && !game[1].showman.id) {
+                            game[1].timer?.pause();
+                            game[1].answering?.pause();
+                            Games.delete(game[0]);
+                            deleteFolder(game[0]);
+                        }
+                        Leave.delete(name);
+                    }, 5000);
+                    Leave.set(name, timer);
                 }
             }
         });
@@ -279,6 +285,7 @@ export default function socket(io: Server): void {
                 callback({ status: 'failed' });
                 return;
             }
+            clearTimeout(Leave.get(data.name));
             let join;
             if (data.type === 'player') {
                 const player = new Player(socket.id, data.name.trim());

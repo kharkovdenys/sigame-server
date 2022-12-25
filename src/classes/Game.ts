@@ -102,19 +102,20 @@ export class Game {
         return false;
     }
 
-    leave(id: string): boolean {
+    leave(id: string): false | string {
         if (this.showman.id === id) {
             this.showman.id = undefined;
-            return true;
+            return this.showman.name;
         }
         for (const i in this.players) {
             if (this.players[i].id === id) {
                 if (this.state !== "waiting-ready") {
                     this.players[i].id = undefined;
+                    return this.players[i].name;
                 }
-                else
-                    this.players.splice(parseInt(i), 1);
-                return true;
+                const name = this.players[i].name;
+                this.players.splice(parseInt(i), 1);
+                return name;
             }
         }
         return false;
