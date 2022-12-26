@@ -198,7 +198,7 @@ export default function socket(io: Server): void {
                 if (!game) return;
                 if (game.state === 'show-question') {
                     if ((game.cooldown.get(socket.id) ?? 0) < Date.now()) {
-                        game.cooldown.set(socket.id, Date.now() + 10000);
+                        game.cooldown.set(socket.id, Date.now() + 5000);
                     }
                 }
                 if (game.state === 'can-answer') {

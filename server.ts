@@ -9,7 +9,7 @@ const app = express();
 const server = createServer(app);
 const port = process.env.PORT || 3000;
 const io = new Server(server, {
-    maxHttpBufferSize: 1e8, cors: { origin: "*" }
+    maxHttpBufferSize: 3e8, cors: { origin: "*" }
 });
 
 app.use("/api/v1", resourcesRoutes);
