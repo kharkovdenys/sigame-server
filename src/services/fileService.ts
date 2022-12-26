@@ -64,7 +64,7 @@ export async function clear(): Promise<void> {
 
 export async function deleteFolder(gameId: string): Promise<void> {
     try {
-        await rm('packs/' + gameId, { recursive: true });
+        await rm('packs/' + gameId, { recursive: true, force: true });
     } catch (err) {
         console.error(err);
     }

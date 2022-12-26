@@ -105,9 +105,10 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
         }, time);
         return;
     }
-    game.timer = new Timer(() => {
-        canAnswer(io, game);
-    }, time);
+    if (game.rounds[game.currentRound].type === 'default')
+        game.timer = new Timer(() => {
+            canAnswer(io, game);
+        }, time);
 }
 
 export async function canAnswer(io: Server, game: Game): Promise<void> {
@@ -163,16 +164,25 @@ export function clickTheme(io: Server, game: Game, i: number): void {
             chooseTheme(io, game);
         }, 1000);
     else {
-        game.state = 'rates';
-        io.to(game.id).emit('rates', { gameState: game.state });
         game.timer = new Timer(() => {
-            for (const player of game.players) {
-                if (player.state !== 'Not a finalist' && !game.rates.get(player.name)) {
-                    game.rates.set(player.name, 1);
+            game.state = 'rates';
+            io.to(game.id).emit('rates', { gameState: game.state });
+            game.timer = new Timer(() => {
+                for (const player of game.players) {
+                    if (player.state !== 'Not a finalist' && !game.rates.get(player.name)) {
+                        game.rates.set(player.name, 1);
+                    }
                 }
-            }
-            console.log([...game.rates.entries()]);
-        }, 30000);
+                console.log([...game.rates.entries()]);
+                const i = game.rounds[game.currentRound].themes.findIndex(t => t.name !== '⠀');
+                if (i !== -1) {
+                    game.currentQuestion = game.rounds[game.currentRound].themes[i].questions[0];
+                    game.currentResource = 0;
+                    showQuestion(io, game);
+                    console.log('Answer', game.rounds[game.currentRound].themes[i].questions[0].answer);
+                }
+            }, 30000);
+        }, 1000);
     }
 }
 

@@ -241,13 +241,18 @@ export default function socket(io: Server): void {
         });
 
         socket.on('send-rate', function (data) {
-            if (data.gameId && data.score === undefined) {
+            if (data.gameId && data.score !== undefined) {
                 const game = Games.get(data.gameId);
                 if (!game) return;
                 if (game.state === 'rates') {
                     const player = game.players.filter(p => p.id === socket.id)[0];
-                    if (player && player.state !== "Not a finalist" && !game.rates.get(player.name) && player.score <= data.score && player.score > 0) {
+                    if (player && player.state !== "Not a finalist" && !game.rates.get(player.name) && player.score >= data.score && player.score > 0) {
                         game.rates.set(player.name, data.score);
+                        if (game.rates.size === game.players.filter(p => p.state !== 'Not a finalist').length && game.timer) {
+                            game.timer.pause();
+                            game.timer.remaining = 0;
+                            game.timer.resume();
+                        }
                     }
                 }
             }
