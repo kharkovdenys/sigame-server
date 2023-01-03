@@ -29,6 +29,7 @@ export class Game {
     queue: Player[] = [];
     loading = true;
     currentQueue = 0;
+    pause = false;
     rates: Map<string, number> = new Map();
     cooldown: Map<string, number> = new Map();
     clicked: Set<string> = new Set();

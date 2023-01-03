@@ -107,7 +107,7 @@ export default function socket(io: Server): void {
         socket.on('skip', async (data, callback) => {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (!game) {
+                if (!game || game.showman.id !== socket.id || game.pause) {
                     callback({ status: 'failed' });
                     return;
                 }
@@ -131,10 +131,35 @@ export default function socket(io: Server): void {
             callback({ status: 'failed' });
         });
 
+        socket.on('pause', async (data, callback) => {
+            if (data.gameId) {
+                const game = Games.get(data.gameId);
+                if (!game || game.showman.id !== socket.id) {
+                    callback({ status: 'failed' });
+                    return;
+                }
+                if (game.answering) {
+                    game.pause ? game.answering.resume() : game.answering.pause();
+                    game.pause = game.pause ? false : true;
+                    callback({ status: game.pause });
+                    socket.to(game.id).emit('pause', game.pause);
+                    return;
+                }
+                if (game.timer) {
+                    game.pause ? game.timer.resume() : game.timer.pause();
+                    game.pause = game.pause ? false : true;
+                    callback({ status: game.pause });
+                    socket.to(game.id).emit('pause', game.pause);
+                    return;
+                }
+            }
+            callback({ status: 'failed' });
+        });
+
         socket.on('choose-player', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (!game) return;
+                if (!game || game.pause) return;
                 if (game.state === 'choose-player-start' && game.showman.id === socket.id) {
                     const { min } = game.minScore();
                     for (const player of game.players) {
@@ -151,7 +176,7 @@ export default function socket(io: Server): void {
         socket.on('choose-question', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (!game) return;
+                if (!game || game.pause) return;
                 if (game.state === 'choose-questions' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
                     if (game.rounds[game.currentRound].themes[data.j].questions[data.i].price !== undefined) {
                         game.timer?.pause();
@@ -165,7 +190,7 @@ export default function socket(io: Server): void {
         socket.on('send-answer-result', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (!game) return;
+                if (!game || game.pause) return;
                 if (game.state === 'answering' && game.showman.id === socket.id) {
                     if (data.result) {
                         game.answering?.pause();
@@ -195,7 +220,7 @@ export default function socket(io: Server): void {
         socket.on('click-for-answer', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (!game) return;
+                if (!game || game.pause) return;
                 if (game.state === 'show-question') {
                     if ((game.cooldown.get(socket.id) ?? 0) < Date.now()) {
                         game.cooldown.set(socket.id, Date.now() + 5000);
@@ -230,7 +255,7 @@ export default function socket(io: Server): void {
         socket.on('choose-theme', function (data) {
             if (data.gameId) {
                 const game = Games.get(data.gameId);
-                if (!game) return;
+                if (!game || game.pause) return;
                 if (game.state === 'choose-theme' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
                     if (game.rounds[game.currentRound].themes[data.i].name !== '⠀') {
                         game.timer?.pause();
@@ -309,7 +334,7 @@ export default function socket(io: Server): void {
                 }
             }
             if (join) {
-                callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString(), themes: game.getThemes(), roundName: game.rounds[game.currentRound].name, chooser: game.chooser, questions: game.getQuestionsRounds(), typeRound: game.rounds[game.currentRound].type });
+                callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString(), themes: game.getThemes(), roundName: game.rounds[game.currentRound].name, chooser: game.chooser, questions: game.getQuestionsRounds(), typeRound: game.rounds[game.currentRound].type, pause: game.pause });
                 return;
             }
             callback({ status: 'failed' });
