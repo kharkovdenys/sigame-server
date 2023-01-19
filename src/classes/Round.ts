@@ -12,7 +12,8 @@ export default class Round {
         if (!Array.isArray(themes))
             themes = [themes];
         for (const theme of themes) {
-            this.themes.push(new Theme(theme["@_name"], theme.questions.question));
+            if (theme.questions)
+                this.themes.push(new Theme(theme["@_name"], theme.questions.question));
         }
     }
 }
