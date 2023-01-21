@@ -105,8 +105,10 @@ export class Game {
 
     leave(id: string): false | string {
         if (this.showman.id === id) {
-            this.showman.id = undefined;
-            return this.showman.name;
+            this.showman.id = '';
+            const name = this.showman.name;
+            this.showman.name = '⠀';
+            return name;
         }
         for (const i in this.players) {
             if (this.players[i].id === id) {
