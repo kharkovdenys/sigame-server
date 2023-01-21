@@ -99,8 +99,8 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
         }
     console.log(time);
     if ((game.currentQuestion?.atom.length ?? 0) - 1 > game.currentResource && game.currentQuestion?.atom[game.currentResource + 1].type !== 'marker') {
-        game.currentResource++;
         game.timer = new Timer(() => {
+            game.currentResource++;
             showQuestion(io, game);
         }, time);
         return;
