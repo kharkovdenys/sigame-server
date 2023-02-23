@@ -3,12 +3,12 @@ import { Server } from 'socket.io';
 import { Game } from '../classes/Game';
 import Player from '../classes/Player';
 import Timer from '../classes/Timer';
-import { deleteZip, writeZip } from './fileService';
+import { Files } from '../controllers/upload';
+import { deleteZip } from './fileService';
 import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from './gameService';
 
 export const Games: Map<string, Game> = new Map();
 const Leave: Map<string, NodeJS.Timeout> = new Map();
-const Files: Map<string, boolean> = new Map();
 
 export default function socket(io: Server): void {
     io.on("connection", (socket) => {
@@ -16,6 +16,7 @@ export default function socket(io: Server): void {
 
         socket.on('disconnect', () => {
             Files.delete(socket.id);
+            deleteZip(socket.id);
             for (const game of Games) {
                 const name = game[1].leave(socket.id);
                 if (name !== false) {
@@ -342,17 +343,6 @@ export default function socket(io: Server): void {
                 return;
             }
             callback({ status: 'failed' });
-        });
-
-        socket.on("upload-pack", async (file, callback) => {
-            try {
-                Files.set(socket.id, false);
-                await writeZip(socket.id, file);
-                Files.set(socket.id, true);
-            } catch {
-                callback({ status: "failure" });
-            }
-            callback({ status: "success" });
         });
     });
 }

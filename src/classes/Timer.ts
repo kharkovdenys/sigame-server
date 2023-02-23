@@ -11,7 +11,6 @@ export default class Timer {
     }
 
     pause(): void {
-        console.log("paused");
         clearTimeout(this.timerId);
         this.timerId = undefined;
         this.remaining -= Date.now() - this.start;

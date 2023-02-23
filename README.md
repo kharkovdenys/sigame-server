@@ -7,6 +7,7 @@ Sigame server to play with friends
 - [Express](https://expressjs.com/)
 - [AdmZip](https://github.com/cthackers/adm-zip)
 - [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser)
+- [Multer](https://github.com/expressjs/multer)
 - [Socket.io](https://socket.io/)
 - [get-video-duration](https://github.com/caffco/get-video-duration)
 - [get-audio-duration](https://github.com/caffco/get-audio-duration)
