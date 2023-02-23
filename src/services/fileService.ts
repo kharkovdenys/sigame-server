@@ -1,53 +1,59 @@
-import extract from "extract-zip";
-import { XMLParser } from "fast-xml-parser";
-import { access, readdir, readFile, rm, unlink, writeFile } from "fs/promises";
-import { constants } from 'fs';
-import getAudioDurationInSeconds from "get-audio-duration";
-import getVideoDurationInSeconds from "get-video-duration";
-import path from "path";
-import { Game } from "../classes/Game";
-import iPackage from "../interfaces/iPackage";
+import AdmZip from 'adm-zip';
+import crypto from 'crypto';
+import { XMLParser } from 'fast-xml-parser';
+import { readdir, rename, rm, writeFile } from 'fs/promises';
+import getAudioDurationInSeconds from 'get-audio-duration';
+import getVideoDurationInSeconds from 'get-video-duration';
 
-export async function unpack(zipName: string, folderName: string): Promise<void> {
-    const onEntry = function (entry: { fileName: string; }): void {
-        entry.fileName = decodeURI(entry.fileName);
-    };
-    await extract(path.join(__dirname, "../../packs/", zipName + ".zip"), { dir: path.join(__dirname, "../../packs/", folderName), onEntry });
-    await unlink("packs/" + zipName + ".zip");
+import { Game } from '../classes/Game';
+import iPackage from '../interfaces/iPackage';
+
+function randomFileName(): string {
+    const randomBytes = crypto.randomBytes(4).toString('hex');
+    return `${randomBytes}-${Date.now()}`;
 }
 
-export async function parserPack(folderName: string): Promise<iPackage> {
+export async function loadZip(zipName: string, game: Game): Promise<void> {
+    await rename("packs/" + zipName + ".zip", "packs/" + game.id + ".zip");
+    game.zip = new AdmZip("packs/" + game.id + ".zip");
+}
+
+export async function parserPack(game: Game): Promise<iPackage> {
     const options = {
         ignoreAttributes: false,
         attributeNamePrefix: "@_"
     };
     const parser = new XMLParser(options);
-    return (parser.parse(await readFile("packs/" + folderName + "/content.xml"))).package;
+    const zip = game.zip;
+    if (!zip) throw new Error("The game pack doesn't exist");
+    return (parser.parse(zip.readAsText("content.xml"))).package;
 }
 
 export async function writeZip(zipName: string, file: string): Promise<void> {
     await writeFile("packs/" + zipName + ".zip", file);
 }
 
-export async function existsZip(zipName: string): Promise<boolean> {
-    return access("packs/" + zipName + ".zip", constants.F_OK)
-        .then(() => true)
-        .catch(() => false);
-}
-
 export async function getVideoDuration(game: Game): Promise<number> {
+    const zip = game.zip;
+    if (!zip) throw new Error("The game pack doesn't exist");
+    const fileName = randomFileName();
+    zip.extractEntryTo("Video/" + encodeURI((game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1)), "packs/", false, true, false, fileName);
     return new Promise((resolve) =>
-        getVideoDurationInSeconds(path.join(__dirname, "../../packs", game.id, "Video", (game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1))).then((duration) => {
+        getVideoDurationInSeconds("packs/" + fileName).then((duration) => {
             resolve(duration * 1000);
-        }).catch(() => { resolve(0); })
+        }).catch(() => { resolve(0); }).then(() => rm("packs/" + fileName).catch(() => null))
     );
 }
 
 export async function getAudioDuration(game: Game): Promise<number> {
+    const zip = game.zip;
+    if (!zip) throw new Error("The game pack doesn't exist");
+    const fileName = randomFileName();
+    zip.extractEntryTo("Audio/" + encodeURI((game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1)), "packs/", false, true, false, fileName);
     return new Promise((resolve) =>
-        getAudioDurationInSeconds(path.join(__dirname, "../../packs", game.id, "Audio", (game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1))).then((duration) => {
+        getAudioDurationInSeconds("packs/" + fileName).then((duration) => {
             resolve(duration * 1000);
-        }).catch(() => { resolve(0); })
+        }).catch(() => { resolve(0); }).then(() => rm("packs/" + fileName).catch(() => null))
     );
 }
 
@@ -56,15 +62,15 @@ export async function clear(): Promise<void> {
         const files = await readdir('packs');
         for (const file of files)
             if (file !== '.gitkeep')
-                await rm('packs/' + file, { recursive: true });
+                await rm('packs/' + file);
     } catch (err) {
         console.error(err);
     }
 }
 
-export async function deleteFolder(gameId: string): Promise<void> {
+export async function deleteZip(gameId: string): Promise<void> {
     try {
-        await rm('packs/' + gameId, { recursive: true, force: true });
+        await rm('packs/' + gameId + '.zip');
     } catch (err) {
         console.error(err);
     }

@@ -1,16 +1,19 @@
-import { randomUUID } from "crypto";
-import Player from "./Player";
-import Round from "./Round";
-import PackInfo from "./PackInfo";
-import iShowman from "../interfaces/iShowman";
-import Timer from "./Timer";
-import Question from "./Question";
-import { parserPack, unpack } from "../services/fileService";
+import AdmZip from 'adm-zip';
+import { randomUUID } from 'crypto';
+
+import iShowman from '../interfaces/iShowman';
+import { loadZip, parserPack } from '../services/fileService';
+import PackInfo from './PackInfo';
+import Player from './Player';
+import Question from './Question';
+import Round from './Round';
+import Timer from './Timer';
 
 export class Game {
     name: string;
     id: string;
     type: "open" | "private" = "open";
+    zip?: AdmZip;
     password?: string;
     maxPlayers: number;
     showman: iShowman;
@@ -207,11 +210,15 @@ export class Game {
     }
 
     async loadPack(): Promise<void> {
-        await unpack(this.creator, this.id);
-        const pack = await parserPack(this.id);
-        this.packInfo = new PackInfo(pack["@_name"], pack["@_version"], pack["@_date"], pack["@_difficulty"], pack["@_logo"], pack.info.authors.author);
-        for (const round of pack.rounds.round) {
-            this.rounds.push(new Round(round["@_name"], round["@_type"], round.themes.theme));
+        try {
+            await loadZip(this.creator, this);
+            const pack = await parserPack(this);
+            this.packInfo = new PackInfo(pack["@_name"], pack["@_version"], pack["@_date"], pack["@_difficulty"], pack["@_logo"], pack.info.authors.author);
+            for (const round of pack.rounds.round) {
+                this.rounds.push(new Round(round["@_name"], round["@_type"], round.themes.theme));
+            }
+        } catch {
+            throw new Error('Unable to read game pack');
         }
     }
 }

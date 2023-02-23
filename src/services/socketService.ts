@@ -1,18 +1,21 @@
-import { Game } from "../classes/Game";
-import { Server } from "socket.io";
-import Player from "../classes/Player";
-import { deleteFolder, existsZip, writeZip } from "./fileService";
-import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from "./gameService";
-import Timer from "../classes/Timer";
+import { Server } from 'socket.io';
+
+import { Game } from '../classes/Game';
+import Player from '../classes/Player';
+import Timer from '../classes/Timer';
+import { deleteZip, writeZip } from './fileService';
+import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from './gameService';
 
 export const Games: Map<string, Game> = new Map();
 const Leave: Map<string, NodeJS.Timeout> = new Map();
+const Files: Map<string, boolean> = new Map();
 
 export default function socket(io: Server): void {
     io.on("connection", (socket) => {
         console.log(socket.id);
 
         socket.on('disconnect', () => {
+            Files.delete(socket.id);
             for (const game of Games) {
                 const name = game[1].leave(socket.id);
                 if (name !== false) {
@@ -22,7 +25,7 @@ export default function socket(io: Server): void {
                             game[1].timer?.pause();
                             game[1].answering?.pause();
                             Games.delete(game[0]);
-                            deleteFolder(game[0]);
+                            deleteZip(game[0]);
                         }
                         Leave.delete(name);
                     }, 5000);
@@ -40,7 +43,7 @@ export default function socket(io: Server): void {
                     game.timer?.pause();
                     game.answering?.pause();
                     Games.delete(game.id);
-                    deleteFolder(game.id);
+                    deleteZip(game.id);
                 }
             }
         });
@@ -292,8 +295,10 @@ export default function socket(io: Server): void {
         });
 
         socket.on('create-game', async function (data, callback) {
-            if (!data.showmanName || !(await existsZip(socket.id)) || !data.name || !data.maxPlayers)
+            if (!data.showmanName || Files.get(socket.id) === false || !data.name || !data.maxPlayers) {
                 callback({ status: 'failed' });
+                return;
+            }
             const game = new Game(data.name, data.maxPlayers, data.password, { id: socket.id, name: data.showmanName });
             Games.set(game.id, game);
             socket.join(game.id);
@@ -305,7 +310,6 @@ export default function socket(io: Server): void {
                 Games.delete(game.id);
                 callback({ status: 'failed' });
             }
-
         });
 
         socket.on('join-game', function (data, callback) {
@@ -342,7 +346,9 @@ export default function socket(io: Server): void {
 
         socket.on("upload-pack", async (file, callback) => {
             try {
+                Files.set(socket.id, false);
                 await writeZip(socket.id, file);
+                Files.set(socket.id, true);
             } catch {
                 callback({ status: "failure" });
             }
