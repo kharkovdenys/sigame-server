@@ -47,8 +47,10 @@ export function whichPlayerStarts(io: Server, game: Game): void {
         game.queue.sort((a, b) => a.score - b.score);
         if (game.queue.length > 0)
             chooseTheme(io, game);
-        else
-            console.log('complete');
+        else {
+            game.state = 'without-finale';
+            io.to(game.id).emit('without-finale');
+        }
     }
 }
 
@@ -87,7 +89,6 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
     game.state = 'show-question';
     io.to(game.id).emit('show-question', { gameState: game.state, atom: { text: current?.type === 'default' || current?.type === 'say' ? current?.text : Date.now(), type: current?.type } });
     let time = 5000;
-    console.log(current);
     if (current?.time)
         time = parseInt(current.time) * 1000;
     else
@@ -97,7 +98,6 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
             case 'video': { time = await getVideoDuration(game); break; }
             case 'voice': { time = await getAudioDuration(game); break; }
         }
-    console.log(time);
     if ((game.currentQuestion?.atom.length ?? 0) - 1 > game.currentResource && game.currentQuestion?.atom[game.currentResource + 1].type !== 'marker') {
         game.timer = new Timer(() => {
             game.currentResource++;

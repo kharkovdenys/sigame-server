@@ -62,7 +62,6 @@ export class Game {
             return true;
         } else {
             const sameNames = this.players.filter(p => p.name === player.name)[0];
-            console.log(sameNames);
             if (sameNames) {
                 if (!sameNames.id) {
                     this.players.forEach((p) => {
