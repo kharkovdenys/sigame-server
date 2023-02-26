@@ -217,6 +217,19 @@ export default function socket(io: Server): void {
             }
         });
 
+        socket.on('send-answer', ({ gameId, answer }) => {
+            const game = Games.get(gameId);
+            if (!game || game.state !== 'answering-final' || !answer) return;
+            const player = game.players.find(p => p.id === socket.id);
+            if (player && player.state !== "Not a finalist" && !game.answers.get(player.name) && player.score > 0) {
+                game.answers.set(player.name, answer);
+                if (game.answers.size === game.players.filter(p => p.state !== 'Not a finalist').length && game.timer) {
+                    //game.timer.skip();
+                    console.log('Answer', [...game.answers.entries()]);
+                }
+            }
+        });
+
         socket.on('get-game-list', function (callback) {
             const gameList = [];
             for (const [, game] of Games.entries()) {

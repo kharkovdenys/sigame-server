@@ -109,6 +109,12 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
         game.timer = new Timer(() => {
             canAnswer(io, game);
         }, time);
+    else {
+        game.timer = new Timer(() => {
+            game.state = 'answering-final';
+            io.to(game.id).emit('answering-final');
+        }, time);
+    }
 }
 
 export async function canAnswer(io: Server, game: Game): Promise<void> {
@@ -173,7 +179,6 @@ export function clickTheme(io: Server, game: Game, i: number): void {
                         game.rates.set(player.name, 1);
                     }
                 }
-                console.log([...game.rates.entries()]);
                 const i = game.rounds[game.currentRound].themes.findIndex(t => t.name !== '⠀');
                 if (i !== -1) {
                     game.currentQuestion = game.rounds[game.currentRound].themes[i].questions[0];

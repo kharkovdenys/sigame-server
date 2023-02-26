@@ -34,6 +34,7 @@ export class Game {
     currentQueue = 0;
     pause = false;
     rates: Map<string, number> = new Map();
+    answers: Map<string, string> = new Map();
     cooldown: Map<string, number> = new Map();
     clicked: Set<string> = new Set();
 
