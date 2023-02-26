@@ -162,6 +162,8 @@ export default function socket(io: Server): void {
             else {
                 game.answering?.skip();
                 game.answering = undefined;
+                if (game.clicked.size === game.players.length)
+                    game.timer?.skip();
             }
         });
 
