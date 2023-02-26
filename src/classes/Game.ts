@@ -127,29 +127,29 @@ export class Game {
         return false;
     }
 
-    changeReady(playerid: string): boolean {
+    changeReady(playerId: string): true | { message: string } {
         if (this.state !== "waiting-ready")
-            return false;
+            return { message: 'The game has already started' };
         for (const i in this.players) {
-            if (this.players[i].id === playerid) {
+            if (this.players[i].id === playerId) {
                 this.players[i].state = this.players[i].state === "Not ready" ? "Ready" : "Not ready";
                 return true;
             }
         }
-        return false;
+        return { message: 'This player was not found' };
     }
 
-    start(userId: string): boolean {
+    start(userId: string): true | { message: string } {
         if (userId !== this.showman.id)
-            return false;
+            return { message: 'You have to be a showman' };
         let ready = 0;
         if (this.state !== "waiting-ready")
-            return false;
+            return { message: 'The game has already started' };
         for (const i in this.players) {
             if (this.players[i].state === "Ready")
                 ready += 1;
         }
-        return ready === this.players.length && this.players.length > 1 ? true : false;
+        return ready === this.players.length && this.players.length > 1 ? true : { message: 'Not all players are ready' };
     }
 
     getThemes(): unknown[] {
