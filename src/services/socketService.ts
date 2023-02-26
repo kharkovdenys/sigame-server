@@ -22,10 +22,11 @@ export default function socket(io: Server): void {
                 if (name !== false) {
                     const timer = setTimeout(() => {
                         socket.to(game[1].id).emit('leave-game', socket.id);
-                        if (!game[1].players.filter(p => p.id).length && !game[1].showman.id) {
+                        if (!game[1].players.some(p => p.id) && !game[1].showman.id) {
                             game[1].timer?.pause();
                             game[1].answering?.pause();
                             Games.delete(game[0]);
+                            io.to("game-list").emit("deleted-game", game[0]);
                             deleteZip(game[0]);
                         }
                         Leave.delete(name);
@@ -35,255 +36,184 @@ export default function socket(io: Server): void {
             }
         });
 
-        socket.on('leave-room', (gameid) => {
-            const game = Games.get(gameid);
-            if (gameid && game && game.leave(socket.id)) {
-                socket.to(gameid).emit('leave-game', socket.id);
-                socket.leave(gameid);
-                if (!game.players.filter(p => p.id).length && !game.showman.id) {
+        socket.on('leave-room', (gameId) => {
+            const game = Games.get(gameId);
+            if (game && game.leave(socket.id)) {
+                socket.to(gameId).emit('leave-game', socket.id);
+                socket.leave(gameId);
+                if (!game.players.some(p => p.id) && !game.showman.id) {
                     game.timer?.pause();
                     game.answering?.pause();
                     Games.delete(game.id);
+                    io.to("game-list").emit("deleted-game", game.id);
                     deleteZip(game.id);
                 }
             }
         });
 
-        socket.on('change-ready', (data, callback) => {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game) {
-                    callback({ status: 'failed' });
-                    return;
-                }
-                if (game.changeReady(socket.id)) {
-                    io.to(data.gameId).emit('player-change-ready', socket.id);
-                    callback({ status: 'success' });
-                    return;
-                }
-            }
-            callback({ status: 'failed' });
+        socket.on('change-ready', ({ gameId }, callback) => {
+            const game = Games.get(gameId);
+            if (!game || !game.changeReady(socket.id))
+                return callback({ status: 'failed' });
+            io.to(gameId).emit('player-change-ready', socket.id);
+            callback({ status: 'success' });
         });
 
         socket.on('change-score', (data, callback) => {
-            if (data.gameId && data.playerName && data.score !== undefined) {
-                const game = Games.get(data.gameId);
-                if (!game) {
-                    callback({ status: 'failed' });
-                    return;
+            const { gameId, playerName, score } = data;
+            if (!gameId || !playerName || score === undefined)
+                return callback({ status: 'failed' });
+            const game = Games.get(data.gameId);
+            if (!game || game.showman.id !== socket.id)
+                return callback({ status: 'failed' });
+            const index = game.players.findIndex(p => p.name === data.playerName);
+            if (index === -1)
+                return callback({ status: 'failed' });
+            game.players[index].score = parseInt(data.score);
+            io.to(data.gameId).emit('player-change-score', { playerName: data.playerName, score: data.score });
+            callback({ status: 'success' });
+        });
+
+        socket.on('start', ({ gameId }, callback) => {
+            const game = Games.get(gameId);
+            if (!game || !game.start(socket.id))
+                return callback({ status: 'failed' });
+            game.state = 'show-themes';
+            game.maxPlayers = game.players.length;
+            const themes = game.getThemes();
+            io.to(gameId).emit('start', { themes, gameState: game.state, maxPlayers: game.maxPlayers });
+            game.timer = new Timer(() => showRoundThemes(io, game), 1000 * themes.length);
+            callback({ status: 'success' });
+        });
+
+        socket.on('skip', ({ gameId }, callback) => {
+            const game = Games.get(gameId);
+            if (!game || game.showman.id !== socket.id || game.pause)
+                return callback({ status: 'failed' });
+            if (game.answering) {
+                game.answering.skip();
+                game.answering = undefined;
+                return callback({ status: 'success' });
+            }
+            if (game.timer) {
+                game.timer.skip();
+                game.timer = undefined;
+                return callback({ status: 'success' });
+            }
+            callback({ status: 'failed' });
+        });
+
+        socket.on('pause', ({ gameId }, callback) => {
+            const game = Games.get(gameId);
+            if (!game || game.showman.id !== socket.id)
+                return callback({ status: 'failed' });
+            if (game.answering) {
+                game.pause ? game.answering.resume() : game.answering.pause();
+                game.pause = game.pause ? false : true;
+                io.to(game.id).emit('pause', game.pause);
+                return callback({ status: 'success' });
+            }
+            if (game.timer) {
+                game.pause ? game.timer.resume() : game.timer.pause();
+                game.pause = game.pause ? false : true;
+                io.to(game.id).emit('pause', game.pause);
+                return callback({ status: 'success' });
+            }
+            callback({ status: 'failed' });
+        });
+
+        socket.on('choose-player', ({ gameId, playerName }) => {
+            const game = Games.get(gameId);
+            if (!game || game.pause || !playerName || game.state !== 'choose-player-start' || game.showman.id !== socket.id) return;
+            const { min } = game.minScore();
+            for (const player of game.players) {
+                if (player.name === playerName && player.score === min) {
+                    game.chooser = player.name;
+                    game.timer?.pause();
+                    chooseQuestions(io, game);
                 }
-                if (game.showman.id === socket.id) {
-                    if (game.players.filter(p => p.name === data.playerName).length) {
-                        game.players.forEach((player) => {
-                            if (player.name === data.playerName) {
-                                player.score = parseInt(data.score);
-                            }
-                        });
-                        io.to(data.gameId).emit('player-change-score', { playerName: data.playerName, score: data.score });
-                        callback({ status: 'success' });
-                        return;
+            }
+        });
+
+        socket.on('choose-question', ({ gameId, i, j }) => {
+            const game = Games.get(gameId);
+            if (!game || game.pause || i === undefined || j === undefined || game.state !== 'choose-questions' || !game.players.some(p => p.id === socket.id && p.name === game.chooser)) return;
+            if (game.rounds[game.currentRound].themes[j].questions[i].price !== undefined) {
+                game.timer?.pause();
+                clickQuestion(io, game, i, j);
+            }
+        });
+
+        socket.on('send-answer-result', ({ gameId, result, chooser }) => {
+            const game = Games.get(gameId);
+            if (!game || game.pause || !chooser || result === undefined || game.showman.id !== socket.id || game.state !== 'answering') return;
+            if (result) {
+                game.answering?.pause();
+                game.answering = undefined;
+                game.timer?.skip();
+                game.chooser = chooser;
+                game.players.forEach(p => {
+                    if (p.name === chooser) {
+                        p.score = p.score + parseInt((game.currentQuestion?.price ?? '0').toString());
+                        io.to(game.id).emit('player-change-score', { playerName: p.name, score: p.score });
                     }
-                }
+                });
             }
-            callback({ status: 'failed' });
-        });
-
-        socket.on('start', async (data, callback) => {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game) {
-                    callback({ status: 'failed' });
-                    return;
-                }
-                if (game.start(socket.id)) {
-                    game.state = 'show-themes';
-                    game.maxPlayers = game.players.length;
-                    await callback({ status: 'success' });
-                    const themes = game.getThemes();
-                    io.to(data.gameId).emit('start', { themes, gameState: game.state, maxPlayers: game.maxPlayers });
-                    game.timer = new Timer(() => showRoundThemes(io, game), 1000 * themes.length);
-                    return;
-                }
-            }
-            callback({ status: 'failed' });
-        });
-
-        socket.on('skip', async (data, callback) => {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game || game.showman.id !== socket.id || game.pause) {
-                    callback({ status: 'failed' });
-                    return;
-                }
-                if (game.answering) {
-                    game.answering.pause();
-                    game.answering.remaining = 0;
-                    game.answering.resume();
-                    game.answering = undefined;
-                    callback({ status: 'success' });
-                    return;
-                }
-                if (game.timer) {
-                    game.timer.pause();
-                    game.timer.remaining = 0;
-                    game.timer.resume();
-                    game.timer = undefined;
-                    callback({ status: 'success' });
-                    return;
-                }
-            }
-            callback({ status: 'failed' });
-        });
-
-        socket.on('pause', async (data, callback) => {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game || game.showman.id !== socket.id) {
-                    callback({ status: 'failed' });
-                    return;
-                }
-                if (game.answering) {
-                    game.pause ? game.answering.resume() : game.answering.pause();
-                    game.pause = game.pause ? false : true;
-                    callback({ status: game.pause });
-                    socket.to(game.id).emit('pause', game.pause);
-                    return;
-                }
-                if (game.timer) {
-                    game.pause ? game.timer.resume() : game.timer.pause();
-                    game.pause = game.pause ? false : true;
-                    callback({ status: game.pause });
-                    socket.to(game.id).emit('pause', game.pause);
-                    return;
-                }
-            }
-            callback({ status: 'failed' });
-        });
-
-        socket.on('choose-player', function (data) {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game || game.pause) return;
-                if (game.state === 'choose-player-start' && game.showman.id === socket.id) {
-                    const { min } = game.minScore();
-                    for (const player of game.players) {
-                        if (player.name === data.playerName && player.score === min) {
-                            game.chooser = player.name;
-                            game.timer?.pause();
-                            chooseQuestions(io, game);
-                        }
-                    }
-                }
+            else {
+                game.answering?.skip();
+                game.answering = undefined;
             }
         });
 
-        socket.on('choose-question', function (data) {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game || game.pause) return;
-                if (game.state === 'choose-questions' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
-                    if (game.rounds[game.currentRound].themes[data.j].questions[data.i].price !== undefined) {
-                        game.timer?.pause();
-                        game.timer = undefined;
-                        clickQuestion(io, game, data.i, data.j);
-                    }
+        socket.on('click-for-answer', function ({ gameId }) {
+            const game = Games.get(gameId);
+            if (!game || game.pause) return;
+            if (game.state === 'show-question') {
+                if ((game.cooldown.get(socket.id) ?? 0) < Date.now()) {
+                    game.cooldown.set(socket.id, Date.now() + 5000);
                 }
             }
-        });
-
-        socket.on('send-answer-result', function (data) {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game || game.pause) return;
-                if (game.state === 'answering' && game.showman.id === socket.id) {
-                    if (data.result) {
-                        game.answering?.pause();
-                        game.answering = undefined;
-                        if (game.timer)
-                            game.timer.remaining = 0;
-                        game.chooser = data.chooser;
+            if (game.state === 'can-answer') {
+                if ((game.cooldown.get(socket.id) ?? 0) < Date.now() && !game.clicked.has(socket.id) && !game.answering) {
+                    game.clicked.add(socket.id);
+                    game.timer?.pause();
+                    game.state = 'answering';
+                    io.to(game.showman.id ?? '').emit('correct-answer', game.currentQuestion?.answer);
+                    const player = game.players.find(p => p.id === socket.id);
+                    io.to(game.id).emit('answering', { gameState: game.state, chooser: player ? player.name : '' });
+                    game.answering = new Timer(() => {
+                        game.state = 'can-answer';
+                        io.to(game.id).emit('can-answer', { gameState: game.state, timing: (game.timer?.remaining ?? 0) / 1000 });
                         game.timer?.resume();
                         game.players.forEach(p => {
-                            if (p.name === data.chooser) {
-                                p.score = p.score + parseInt((game.currentQuestion?.price ?? '0').toString());
+                            if (p.id === socket.id) {
+                                p.score -= game.currentQuestion?.price ?? 0;
                                 io.to(game.id).emit('player-change-score', { playerName: p.name, score: p.score });
                             }
                         });
-                    }
-                    else {
-                        game.answering?.pause();
-                        if (game.answering)
-                            game.answering.remaining = 0;
-                        game.answering?.resume();
                         game.answering = undefined;
-                    }
+                    }, 30000);
                 }
             }
         });
 
-        socket.on('click-for-answer', function (data) {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game || game.pause) return;
-                if (game.state === 'show-question') {
-                    if ((game.cooldown.get(socket.id) ?? 0) < Date.now()) {
-                        game.cooldown.set(socket.id, Date.now() + 5000);
-                    }
-                }
-                if (game.state === 'can-answer') {
-                    if ((game.cooldown.get(socket.id) ?? 0) < Date.now() && !game.clicked.has(socket.id) && !game.answering) {
-                        game.clicked.add(socket.id);
-                        game.timer?.pause();
-                        game.state = 'answering';
-                        io.to(game.showman.id ?? '').emit('correct-answer', game.currentQuestion?.answer);
-                        const player = game.players.filter(p => p.id === socket.id)[0];
-                        io.to(game.id).emit('answering', { gameState: game.state, chooser: player ? player.name : '' });
-                        game.answering = new Timer(() => {
-                            game.state = 'can-answer';
-                            io.to(game.id).emit('can-answer', { gameState: game.state, timing: (game.timer?.remaining ?? 0) / 1000 });
-                            game.timer?.resume();
-                            console.log(socket.id);
-                            game.players.forEach(p => {
-                                if (p.id === socket.id) {
-                                    p.score -= game.currentQuestion?.price ?? 0;
-                                    io.to(game.id).emit('player-change-score', { playerName: p.name, score: p.score });
-                                }
-                            });
-                            game.answering = undefined;
-                        }, 30000);
-                    }
-                }
+        socket.on('choose-theme', ({ gameId, i }) => {
+            const game = Games.get(gameId);
+            if (!game || game.pause || i === undefined || game.state !== 'choose-theme' || !game.players.some(p => p.id === socket.id && p.name === game.chooser)) return;
+            if (game.rounds[game.currentRound].themes[i].name !== '⠀') {
+                game.timer?.pause();
+                clickTheme(io, game, i);
             }
         });
 
-        socket.on('choose-theme', function (data) {
-            if (data.gameId) {
-                const game = Games.get(data.gameId);
-                if (!game || game.pause) return;
-                if (game.state === 'choose-theme' && game.players.filter(p => p.id === socket.id && p.name === game.chooser).length) {
-                    if (game.rounds[game.currentRound].themes[data.i].name !== '⠀') {
-                        game.timer?.pause();
-                        clickTheme(io, game, data.i);
-                    }
-                }
-            }
-        });
-
-        socket.on('send-rate', function (data) {
-            if (data.gameId && data.score !== undefined) {
-                const game = Games.get(data.gameId);
-                if (!game) return;
-                if (game.state === 'rates') {
-                    const player = game.players.filter(p => p.id === socket.id)[0];
-                    if (player && player.state !== "Not a finalist" && !game.rates.get(player.name) && player.score >= data.score && player.score > 0) {
-                        game.rates.set(player.name, data.score);
-                        if (game.rates.size === game.players.filter(p => p.state !== 'Not a finalist').length && game.timer) {
-                            game.timer.pause();
-                            game.timer.remaining = 0;
-                            game.timer.resume();
-                        }
-                    }
-                }
+        socket.on('send-rate', ({ gameId, score }) => {
+            const game = Games.get(gameId);
+            if (!game || game.state !== 'rates' || score === undefined) return;
+            const player = game.players.find(p => p.id === socket.id);
+            if (player && player.state !== "Not a finalist" && !game.rates.get(player.name) && player.score >= score && player.score > 0) {
+                game.rates.set(player.name, score);
+                if (game.rates.size === game.players.filter(p => p.state !== 'Not a finalist').length && game.timer)
+                    game.timer.skip();
             }
         });
 
@@ -292,19 +222,20 @@ export default function socket(io: Server): void {
             for (const [, game] of Games.entries()) {
                 gameList.push({ id: game.id, name: game.name, players: game.players.filter(p => p.id).length, maxPlayers: game.maxPlayers, rounds: game.rounds.length });
             }
+            socket.join("game-list");
             callback(gameList);
         });
 
         socket.on('create-game', async function (data, callback) {
-            if (!data.showmanName || Files.get(socket.id) === false || !data.name || !data.maxPlayers) {
-                callback({ status: 'failed' });
-                return;
-            }
+            if (!data.showmanName || Files.get(socket.id) === false || !data.name || !data.maxPlayers)
+                return callback({ status: 'failed' });
             const game = new Game(data.name, data.maxPlayers, data.password, { id: socket.id, name: data.showmanName });
             Games.set(game.id, game);
             socket.join(game.id);
             try {
                 await game.loadPack();
+                socket.leave("game-list");
+                io.to("game-list").emit("new-game", { id: game.id, name: game.name, players: game.players.filter(p => p.id).length, maxPlayers: game.maxPlayers, rounds: game.rounds.length });
                 callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, gameState: game.state, packInfo: game.packInfo?.getString() });
                 game.loading = false;
             } catch {
@@ -313,17 +244,14 @@ export default function socket(io: Server): void {
             }
         });
 
-        socket.on('join-game', function (data, callback) {
-            const { gameId } = data;
+        socket.on('join-game', function ({ gameId, name, type }, callback) {
             const game = Games.get(gameId);
-            if (!game || !data.name || !data.type) {
-                callback({ status: 'failed' });
-                return;
-            }
-            clearTimeout(Leave.get(data.name));
+            if (!game || !name || !type)
+                return callback({ status: 'failed' });
+            clearTimeout(Leave.get(name));
             let join;
-            if (data.type === 'player') {
-                const player = new Player(socket.id, data.name.trim());
+            if (type === 'player') {
+                const player = new Player(socket.id, name.trim());
                 join = game.join(player);
                 if (join) {
                     socket.join(gameId);
@@ -331,7 +259,7 @@ export default function socket(io: Server): void {
                 }
             }
             else {
-                const showman = { id: socket.id, name: data.name.trim() };
+                const showman = { id: socket.id, name: name.trim() };
                 join = game.joinShowman(showman);
                 if (join) {
                     socket.join(gameId);
@@ -339,8 +267,8 @@ export default function socket(io: Server): void {
                 }
             }
             if (join) {
-                callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString(), themes: game.getThemes(), roundName: game.rounds[game.currentRound].name, chooser: game.chooser, questions: game.getQuestionsRounds(), typeRound: game.rounds[game.currentRound].type, pause: game.pause });
-                return;
+                socket.leave("game-list");
+                return callback({ status: 'success', gameId: game.id, showman: game.showman, maxPlayers: game.maxPlayers, players: game.players, gameState: game.state, packInfo: game.packInfo?.getString(), themes: game.getThemes(), roundName: game.rounds[game.currentRound].name, chooser: game.chooser, questions: game.getQuestionsRounds(), typeRound: game.rounds[game.currentRound].type, pause: game.pause });
             }
             callback({ status: 'failed' });
         });

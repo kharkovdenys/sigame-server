@@ -22,4 +22,9 @@ export default class Timer {
         this.start = Date.now();
         this.timerId = setTimeout(this.callback, this.remaining);
     }
+    skip(): void {
+        clearTimeout(this.timerId);
+        this.remaining = 0;
+        this.timerId = setTimeout(this.callback, this.remaining);
+    }
 }

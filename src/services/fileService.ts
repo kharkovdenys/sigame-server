@@ -58,20 +58,12 @@ export async function getAudioDuration(game: Game): Promise<number> {
 }
 
 export async function clear(): Promise<void> {
-    try {
-        const files = await readdir('packs');
-        for (const file of files)
-            if (file !== '.gitkeep')
-                await rm('packs/' + file);
-    } catch (err) {
-        console.error(err);
-    }
+    const files = await readdir('packs');
+    for (const file of files)
+        if (file !== '.gitkeep')
+            await rm('packs/' + file).catch(() => null);
 }
 
 export async function deleteZip(gameId: string): Promise<void> {
-    try {
-        await rm('packs/' + gameId + '.zip');
-    } catch (err) {
-        console.error(err);
-    }
+    await rm('packs/' + gameId + '.zip').catch(() => null);
 }
