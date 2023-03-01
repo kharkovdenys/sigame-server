@@ -5,7 +5,7 @@ import Player from '../classes/Player';
 import Timer from '../classes/Timer';
 import { Files } from '../controllers/upload';
 import { deleteZip } from './fileService';
-import { chooseQuestions, clickQuestion, clickTheme, showRoundThemes } from './gameService';
+import { chooseQuestions, clickQuestion, clickTheme, sendFinalAnswer, showRoundThemes } from './gameService';
 
 export const Games: Map<string, Game> = new Map();
 const Leave: Map<string, NodeJS.Timeout> = new Map();
@@ -167,6 +167,27 @@ export default function socket(io: Server): void {
             }
         });
 
+        socket.on('send-final-answer-result', ({ gameId, result, chooser }) => {
+            const game = Games.get(gameId);
+            if (!game || game.pause || !chooser || result === undefined || game.showman.id !== socket.id || game.state !== 'final-answer') return;
+            if (result) {
+                game.timer?.pause();
+                const answers = [...game.answers.entries()];
+                const rate = game.rates.get(answers[0][0]);
+                game.players.some(p => {
+                    if (p.name === answers[0][0]) {
+                        p.score += rate ?? 1;
+                        io.to(game.id).emit('player-change-score', { playerName: p.name, score: p.score });
+                        return true;
+                    }
+                    return false;
+                });
+                game.answers.delete(answers[0][0]);
+                sendFinalAnswer(io, game);
+            }
+            else game.timer?.skip();
+        });
+
         socket.on('click-for-answer', function ({ gameId }) {
             const game = Games.get(gameId);
             if (!game || game.pause) return;
@@ -225,10 +246,8 @@ export default function socket(io: Server): void {
             const player = game.players.find(p => p.id === socket.id);
             if (player && player.state !== "Not a finalist" && !game.answers.get(player.name) && player.score > 0) {
                 game.answers.set(player.name, answer);
-                if (game.answers.size === game.players.filter(p => p.state !== 'Not a finalist').length && game.timer) {
-                    //game.timer.skip();
-                    console.log('Answer', [...game.answers.entries()]);
-                }
+                if (game.answers.size === game.players.filter(p => p.state !== 'Not a finalist').length && game.timer)
+                    game.timer.skip();
             }
         });
 

@@ -113,7 +113,36 @@ export async function showQuestion(io: Server, game: Game): Promise<void> {
         game.timer = new Timer(() => {
             game.state = 'answering-final';
             io.to(game.id).emit('answering-final');
+            game.timer = new Timer(() => {
+                io.to(game.showman.id ?? '').emit('correct-answer', game.currentQuestion?.answer);
+                sendFinalAnswer(io, game);
+            }, 60000);
         }, time);
+    }
+}
+
+export async function sendFinalAnswer(io: Server, game: Game): Promise<void> {
+    game.state = 'final-answer';
+    const answers = [...game.answers.entries()];
+    if (answers.length === 0) {
+        game.state = 'final';
+        io.to(game.id).emit('final');
+    }
+    else {
+        io.to(game.id).emit('final-answer', { gameState: game.state, chooser: answers[0][0], answer: answers[0][1] });
+        game.timer = new Timer(() => {
+            const rate = game.rates.get(answers[0][0]);
+            game.players.some(p => {
+                if (p.name === answers[0][0]) {
+                    p.score -= rate ?? 1;
+                    io.to(game.id).emit('player-change-score', { playerName: p.name, score: p.score });
+                    return true;
+                }
+                return false;
+            });
+            game.answers.delete(answers[0][0]);
+            sendFinalAnswer(io, game);
+        }, 30000);
     }
 }
 
@@ -184,7 +213,6 @@ export function clickTheme(io: Server, game: Game, i: number): void {
                     game.currentQuestion = game.rounds[game.currentRound].themes[i].questions[0];
                     game.currentResource = 0;
                     showQuestion(io, game);
-                    console.log('Answer', game.rounds[game.currentRound].themes[i].questions[0].answer);
                 }
             }, 30000);
         }, 1000);
