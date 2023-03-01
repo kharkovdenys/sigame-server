@@ -263,7 +263,7 @@ export default function socket(io: Server): void {
         socket.on('create-game', async function (data, callback) {
             if (!data.showmanName || !data.name || !data.maxPlayers) return callback({ status: 'failed', message: 'Incorrect data' });
             if (Files.get(socket.id) === false) return callback({ status: 'failed', message: 'The file has not yet been uploaded' });
-            const game = new Game(data.name, data.maxPlayers, data.password, { id: socket.id, name: data.showmanName });
+            const game = new Game(data.name, data.maxPlayers, { id: socket.id, name: data.showmanName });
             Games.set(game.id, game);
             socket.join(game.id);
             try {

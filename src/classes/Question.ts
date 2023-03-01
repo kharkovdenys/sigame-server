@@ -4,7 +4,6 @@ import Atom from "./Atom";
 export default class Question {
     price: number;
     answer: string;
-    //type   not yet
     atom: Atom[] = [];
     used = false;
 

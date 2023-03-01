@@ -12,12 +12,9 @@ import Timer from './Timer';
 export class Game {
     name: string;
     id: string;
-    type: "open" | "private" = "open";
     zip?: AdmZip;
-    password?: string;
     maxPlayers: number;
     showman: iShowman;
-    creator: string;
     players: Player[] = [];
     rounds: Round[] = [];
     packInfo?: PackInfo;
@@ -38,15 +35,10 @@ export class Game {
     cooldown: Map<string, number> = new Map();
     clicked: Set<string> = new Set();
 
-    constructor(name: string, maxPlayers: number, password: string | undefined, showman: iShowman) {
+    constructor(name: string, maxPlayers: number, showman: iShowman) {
         this.name = name;
         this.maxPlayers = maxPlayers;
-        if (password) {
-            this.password = password;
-            this.type = "private";
-        }
         this.showman = showman;
-        this.creator = showman.id ?? '';
         this.id = randomUUID();
     }
 
@@ -211,9 +203,9 @@ export class Game {
 
     async loadPack(): Promise<void> {
         try {
-            await loadZip(this.creator, this);
+            await loadZip(this.showman.id ?? '', this);
             const pack = await parserPack(this);
-            this.packInfo = new PackInfo(pack["@_name"], pack["@_version"], pack["@_date"], pack["@_difficulty"], pack["@_logo"], pack.info.authors.author);
+            this.packInfo = new PackInfo(pack["@_name"], pack["@_date"], pack.info.authors.author);
             for (const round of pack.rounds.round) {
                 this.rounds.push(new Round(round["@_name"], round["@_type"], round.themes.theme));
             }

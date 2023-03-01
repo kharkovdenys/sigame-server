@@ -1,17 +1,11 @@
 export default class PackInfo {
     name: string;
-    version: string;
     date: string;
-    difficulty: string;
-    logo?: string;
     authors?: string;
 
-    constructor(name: string, version: string, date: string, difficulty: string, logo?: string, authors?: string[] | string) {
+    constructor(name: string, date: string, authors?: string[] | string) {
         this.name = name;
-        this.version = version;
         this.date = date;
-        this.difficulty = difficulty;
-        this.logo = logo;
         this.authors = (Array.isArray(authors) ? authors : [authors]).join(' ');
     }
 
