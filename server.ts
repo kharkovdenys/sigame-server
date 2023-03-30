@@ -4,7 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 
 import resourcesRoutes from './src/routes/getResources';
-import uploadRoutes from './src/routes/upload';
+import uploadRoutes from './src/routes/fileUploader';
 import { clear } from './src/services/fileService';
 import socket from './src/services/socketService';
 

@@ -3,7 +3,7 @@ import { Server } from 'socket.io';
 import { Game } from '../classes/Game';
 import Player from '../classes/Player';
 import Timer from '../classes/Timer';
-import { Files } from '../controllers/upload';
+import { uploadedFiles } from '../controllers/fileUploader';
 import { deleteZip } from './fileService';
 import { chooseQuestions, clickQuestion, clickTheme, sendFinalAnswer, showRoundThemes } from './gameService';
 
@@ -15,7 +15,7 @@ export default function socket(io: Server): void {
         console.log(socket.id);
 
         socket.on('disconnect', () => {
-            Files.delete(socket.id);
+            uploadedFiles.delete(socket.id);
             deleteZip(socket.id);
             for (const game of Games) {
                 const name = game[1].leave(socket.id);
@@ -262,7 +262,7 @@ export default function socket(io: Server): void {
 
         socket.on('create-game', async function (data, callback) {
             if (!data.showmanName || !data.name || !data.maxPlayers) return callback({ status: 'failed', message: 'Incorrect data' });
-            if (Files.get(socket.id) === false) return callback({ status: 'failed', message: 'The file has not yet been uploaded' });
+            if (uploadedFiles.get(socket.id) === false) return callback({ status: 'failed', message: 'The file has not yet been uploaded' });
             const game = new Game(data.name, data.maxPlayers, { id: socket.id, name: data.showmanName });
             Games.set(game.id, game);
             socket.join(game.id);
