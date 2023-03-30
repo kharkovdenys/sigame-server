@@ -209,8 +209,9 @@ export class Game {
             for (const round of pack.rounds.round) {
                 this.rounds.push(new Round(round["@_name"], round["@_type"], round.themes.theme));
             }
-        } catch {
-            throw new Error('Unable to read game pack');
+        } catch (err) {
+            console.error(`Error loading pack: ${err}`);
+            throw new Error('Unable to load game pack');
         }
     }
 }

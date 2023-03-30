@@ -1,24 +1,48 @@
 import { Request, Response } from 'express';
+import path from 'path';
 
 import { Games } from '../services/socketService';
 
-export const getImage = (req: Request, res: Response): void => {
-    const game = Games.get(req.params.gameId);
-    if (game?.currentQuestion?.atom[game.currentResource].type === 'image' && game.zip) {
-        res.send(game.zip.readFile("Images/" + encodeURI((game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1))));
-    } else res.sendStatus(404);
+const getResource = (req: Request, res: Response, type: string): void => {
+    const gameId = req.params.gameId;
+    const game = Games.get(gameId);
+
+    if (!game || !game.zip || !game.currentQuestion || !game.currentQuestion.atom) {
+        res.sendStatus(404);
+        return;
+    }
+
+    const currentResource = game.currentResource;
+    const currentAtom = game.currentQuestion.atom[currentResource];
+
+    if (!currentAtom || currentAtom.type !== type) {
+        res.sendStatus(404);
+        return;
+    }
+
+    const folder = type.charAt(0).toUpperCase() + type.slice(1) + (type === 'image' ? 's' : '');
+    const file = encodeURI(currentAtom.text.substring(1).replace(/%5B/g, "[").replace(/%5D/g, "]"));
+    const filePath = path.join(folder, file);
+    const fileData = game.zip.readFile(filePath);
+
+    if (!fileData) {
+        res.sendStatus(404);
+        return;
+    }
+
+    res.send(fileData);
 };
 
-export const getAudio = (req: Request, res: Response): void => {
-    const game = Games.get(req.params.gameId);
-    if (game?.currentQuestion?.atom[game.currentResource].type === 'voice' && game.zip) {
-        res.send(game.zip.readFile("Audio/" + encodeURI((game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1))));
-    } else res.sendStatus(404);
+const getImage = (req: Request, res: Response): void => {
+    getResource(req, res, 'image');
 };
 
-export const getVideo = (req: Request, res: Response): void => {
-    const game = Games.get(req.params.gameId);
-    if (game?.currentQuestion?.atom[game.currentResource].type === 'video' && game.zip) {
-        res.send(game.zip.readFile("Video/" + encodeURI((game?.currentQuestion?.atom[game.currentResource].text ?? '').substring(1))));
-    } else res.sendStatus(404);
+const getAudio = (req: Request, res: Response): void => {
+    getResource(req, res, 'audio');
 };
+
+const getVideo = (req: Request, res: Response): void => {
+    getResource(req, res, 'video');
+};
+
+export { getImage, getAudio, getVideo };

@@ -1,7 +1,7 @@
 import { Server } from "socket.io";
 import { Game } from "../classes/Game";
 import Timer from "../classes/Timer";
-import { getAudioDuration, getVideoDuration } from "./fileService";
+import { getDuration } from "./fileService";
 
 export function showRoundThemes(io: Server, game: Game): void {
     game.state = 'show-round-themes';
@@ -87,16 +87,17 @@ export function clickQuestion(io: Server, game: Game, i: number, j: number): voi
 export async function showQuestion(io: Server, game: Game): Promise<void> {
     const current = game.currentQuestion?.atom[game.currentResource];
     game.state = 'show-question';
-    io.to(game.id).emit('show-question', { gameState: game.state, atom: { text: current?.type === 'default' || current?.type === 'say' ? current?.text : Date.now(), type: current?.type } });
+    io.to(game.id).emit('show-question', { gameState: game.state, atom: { text: current?.type === 'text' ? current?.text : Date.now(), type: current?.type } });
     let time = 5000;
     if (current?.time)
         time = parseInt(current.time) * 1000;
     else
         switch (current?.type) {
-            case 'default': { time = (current.text?.length ?? 20) * 200; break; }
-            case 'say': { time = (current.text?.length ?? 20) * 200; break; }
-            case 'video': { time = await getVideoDuration(game); break; }
-            case 'voice': { time = await getAudioDuration(game); break; }
+            case 'text':
+                { time = (current.text?.length ?? 20) * 200; break; }
+            case 'video':
+            case 'audio':
+                { time = await getDuration(game, current?.type); break; }
         }
     if ((game.currentQuestion?.atom.length ?? 0) - 1 > game.currentResource && game.currentQuestion?.atom[game.currentResource + 1].type !== 'marker') {
         game.timer = new Timer(() => {
@@ -162,18 +163,19 @@ export async function answer(io: Server, game: Game): Promise<void> {
     if ((game.currentQuestion?.atom.length ?? 0) > 2 && game.currentQuestion?.atom[game.currentQuestion?.atom.length - 2].type === 'marker') {
         const current = game.currentQuestion?.atom[game.currentQuestion?.atom.length - 1];
         game.currentResource = game.currentQuestion?.atom.length - 1;
-        answer = { text: current?.type === 'default' || current?.type === 'say' ? current?.text : Date.now().toString(), type: current?.type };
+        answer = { text: current?.type === 'text' ? current?.text : Date.now().toString(), type: current?.type };
         comment = game.currentQuestion?.answer;
     }
     else
-        answer = { type: 'say', text: game.currentQuestion?.answer };
+        answer = { type: 'text', text: game.currentQuestion?.answer };
     io.to(game.id).emit('answer', { gameState: game.state, atom: answer, comment });
     let time = 5000;
-    switch (answer?.type) {
-        case 'default': { time = (answer.text?.length ?? 20) * 200; break; }
-        case 'say': { time = (answer.text?.length ?? 20) * 200; break; }
-        case 'video': { time = await getVideoDuration(game); break; }
-        case 'voice': { time = await getAudioDuration(game); break; }
+    switch (answer.type) {
+        case 'text':
+            { time = (answer.text?.length ?? 20) * 200; break; }
+        case 'video':
+        case 'audio':
+            { time = await getDuration(game, answer?.type); break; }
     }
     if (game.countQuestions)
         game.timer = new Timer(() => {

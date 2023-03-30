@@ -1,4 +1,5 @@
 import { Router } from 'express';
+
 import { getAudio, getImage, getVideo } from '../controllers/getResources';
 
 const router = Router();
