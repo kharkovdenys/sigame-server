@@ -46,39 +46,29 @@ export class Game {
         if (this.loading || this.showman.id === player.id || this.showman.name === player.name)
             return false;
         if (this.state === 'waiting-ready' && this.players.length < this.maxPlayers) {
-            for (const iplayer of this.players) {
-                if (iplayer.id === player.id || iplayer.name === player.name) {
-                    return false;
-                }
-            }
-            this.players.push(player);
-            return true;
-        } else {
-            const sameNames = this.players.filter(p => p.name === player.name)[0];
-            if (sameNames) {
-                if (!sameNames.id) {
-                    this.players.forEach((p) => {
-                        if (p.name === player.name) {
-                            p.id = player.id;
-                        }
-                    });
-                    return true;
-                }
+            if (this.players.some(p => p.id === player.id || p.name === player.name)) {
+                return false;
             } else {
-                let flag = false;
-                this.players.forEach((p) => {
-                    if (!p.id) {
-                        p.id = player.id;
-                        if (p.name === this.chooser)
-                            this.chooser = player.name;
-                        p.name = player.name;
-                        flag = true;
-                        return;
-                    }
-                });
-                if (flag)
-                    return true;
+                this.players.push(player);
+                return true;
             }
+        }
+        const existingPlayer = this.players.find(p => p.name === player.name);
+        if (existingPlayer && existingPlayer.id) {
+            return false;
+        }
+        if (existingPlayer) {
+            existingPlayer.id = player.id;
+            return true;
+        }
+        const availablePlayer = this.players.find(p => !p.id);
+        if (availablePlayer) {
+            availablePlayer.id = player.id;
+            if (availablePlayer.name === this.chooser) {
+                this.chooser = player.name;
+            }
+            availablePlayer.name = player.name;
+            return true;
         }
         return false;
     }
