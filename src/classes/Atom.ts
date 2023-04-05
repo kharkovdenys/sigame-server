@@ -7,7 +7,8 @@ export default class Atom {
         this.text = text || "";
         switch (type) {
             case 'image':
-            case 'video': {
+            case 'video':
+            case 'marker': {
                 this.type = type;
                 break;
             }
