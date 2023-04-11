@@ -21,7 +21,7 @@ const getResource = (req: Request, res: Response, type: string): void => {
     }
 
     const folder = type.charAt(0).toUpperCase() + type.slice(1) + (type === 'image' ? 's' : '');
-    const file = encodeURI(currentAtom.text.substring(1).replace(/%5B/g, "[").replace(/%5D/g, "]"));
+    const file = encodeURI(currentAtom.text.substring(1)).replace(/%5B/g, "[").replace(/%5D/g, "]");
     const filePath = path.join(folder, file);
     const fileData = game.zip.readFile(filePath);
 
